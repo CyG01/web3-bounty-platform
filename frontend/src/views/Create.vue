@@ -2,18 +2,19 @@
   <div class="max-w-3xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
     <div class="md:flex md:items-center md:justify-between mb-8">
       <div class="min-w-0 flex-1">
-        <h2 class="text-3xl font-extrabold text-gray-900 sm:text-4xl sm:tracking-tight">
-          Post a New Task
+        <h2 class="text-3xl font-extrabold sm:text-4xl sm:tracking-tight" :style="titleStyle">
+          {{ t('create.title') }}
         </h2>
-        <p class="mt-2 text-lg text-gray-500">
-          Create a bounty, deposit the reward, and let the Web3 community build for you.
+        <p class="mt-2 text-lg" :style="mutedStyle">
+          {{ t('create.subtitle') }}
         </p>
       </div>
     </div>
 
     <div
       v-if="!userStore.isConnected"
-      class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-md"
+      class="border-l-4 p-4 mb-6 rounded-r-md ui-glow"
+      :style="warningStyle"
     >
       <div class="flex">
         <div class="flex-shrink-0">
@@ -31,86 +32,86 @@
           </svg>
         </div>
         <div class="ml-3">
-          <p class="text-sm text-yellow-700 font-medium">
-            Please connect your wallet in the navigation bar to post a task.
+          <p class="text-sm font-medium" :style="warningTextStyle">
+            {{ t('create.connectHint') }}
           </p>
         </div>
       </div>
     </div>
 
     <form
-      class="space-y-6 bg-white shadow-lg border border-gray-100 px-4 py-6 sm:rounded-xl sm:p-8"
+      class="space-y-6 px-4 py-6 sm:rounded-xl sm:p-8 ui-glow ui-shimmer-border"
+      :style="panelStyle"
       :class="{
         'opacity-60 pointer-events-none grayscale-[30%]': !userStore.isConnected || isSubmitting,
       }"
       @submit.prevent="submitBounty"
     >
       <div>
-        <label class="block text-sm font-semibold text-gray-700">Task Title</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.taskTitle') }}</label>
         <div class="mt-2">
           <input
             v-model="form.title"
             type="text"
             required
-            class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
-            placeholder="e.g. Build a Landing Page in Vue3"
+            class="block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+            :style="inputStyle"
+            :placeholder="t('create.taskTitlePlaceholder')"
           />
         </div>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-700"
-          >Description URI (IPFS / URL)</label
-        >
+        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.descUri') }}</label>
         <div class="mt-2">
           <input
             v-model="form.descURI"
             type="text"
             :required="!autoUploadDesc"
-            class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
-            placeholder="ipfs://... or https://github.com/..."
+            class="block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+            :style="inputStyle"
+            :placeholder="t('create.descUriPlaceholder')"
           />
         </div>
-        <p class="mt-2 text-xs text-gray-500">
-          Provide a link to a document or repository containing the detailed requirements.
+        <p class="mt-2 text-xs" :style="mutedStyle">
+          {{ t('create.descUriHint') }}
         </p>
       </div>
 
-      <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+      <div class="rounded-lg border p-4 space-y-3" :style="subPanelStyle">
         <div class="flex items-center justify-between gap-3">
-          <label class="text-sm font-semibold text-gray-800"
-            >Write markdown and auto-upload to IPFS</label
-          >
+          <label class="text-sm font-semibold" :style="titleStyle">{{ t('create.autoUploadTitle') }}</label>
           <input v-model="autoUploadDesc" type="checkbox" class="h-4 w-4" />
         </div>
         <textarea
           v-model="form.markdown"
           rows="8"
-          class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
-          placeholder="## Task details&#10;- scope&#10;- deliverables&#10;- acceptance criteria"
+          class="block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+          :style="inputStyle"
+          :placeholder="t('create.markdownPlaceholder')"
         />
-        <p class="text-xs text-gray-500">
-          When enabled, publish will upload this markdown to IPFS via Pinata and auto-fill
-          `Description URI`.
+        <p class="text-xs" :style="mutedStyle">
+          {{ t('create.autoUploadHint') }}
         </p>
       </div>
 
       <div class="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
         <div>
-          <label class="block text-sm font-semibold text-gray-700">Token Type</label>
+          <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.tokenType') }}</label>
           <div class="mt-2">
             <select
               v-model="form.tokenType"
-              class="block w-full border-gray-300 bg-white rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
+              class="block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+              :style="inputStyle"
             >
-              <option value="ETH">Native ETH</option>
-              <option value="ERC20">ERC20 Token</option>
+              <option value="ETH">{{ t('create.nativeEth') }}</option>
+              <option value="ERC20">{{ t('create.erc20Token') }}</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-semibold text-gray-700">Reward Amount</label>
+          <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.rewardAmount') }}</label>
           <div class="mt-2 relative rounded-lg shadow-sm">
             <input
               v-model="form.reward"
@@ -118,54 +119,58 @@
               step="0.0001"
               min="0.0001"
               required
-              class="block w-full border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
+              class="block w-full rounded-lg sm:text-sm py-3 px-4 border transition-colors"
+              :style="inputStyle"
               placeholder="0.1"
             />
           </div>
-          <p v-if="form.tokenType === 'ERC20'" class="mt-2 text-xs text-gray-500 break-all">
-            Current token: {{ tokenSymbol ? tokenSymbol : form.tokenAddress || '-' }}
+          <p v-if="form.tokenType === 'ERC20'" class="mt-2 text-xs break-all" :style="mutedStyle">
+            {{ t('create.currentToken') }}: {{ tokenSymbol ? tokenSymbol : form.tokenAddress || '-' }}
           </p>
         </div>
       </div>
 
       <div v-if="form.tokenType === 'ERC20'">
-        <label class="block text-sm font-semibold text-gray-700">ERC20 Token Address</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.erc20Address') }}</label>
         <div class="mt-2">
           <input
             v-model="form.tokenAddress"
             type="text"
             required
-            class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
+            class="block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+            :style="inputStyle"
             placeholder="0x..."
           />
         </div>
-        <p class="mt-2 text-xs text-gray-500">
-          Make sure this token exists on the current network and your wallet has enough balance.
+        <p class="mt-2 text-xs" :style="mutedStyle">
+          {{ t('create.erc20Hint') }}
         </p>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-700">Deadline</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.deadline') }}</label>
         <div class="mt-2">
           <input
             v-model="form.deadline"
             type="datetime-local"
             required
-            class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
+            class="block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+            :style="inputStyle"
           />
         </div>
       </div>
 
-      <div class="pt-6 border-t border-gray-200 mt-8 flex items-center justify-end">
+      <div class="pt-6 border-t mt-8 flex items-center justify-end" :style="dividerStyle">
         <span v-if="errorMsg" class="text-red-500 text-sm mr-4 font-medium">{{ errorMsg }}</span>
         <span v-if="txHash" class="text-green-600 text-sm mr-4 font-medium"
-          >Tx Sent: {{ shortenTx(txHash) }}</span
+          >{{ t('create.txSent') }}: {{ shortenTx(txHash) }}</span
         >
 
         <button
           type="submit"
           :disabled="!userStore.isConnected || isSubmitting"
-          class="inline-flex justify-center items-center py-3 px-6 border border-transparent shadow-md text-sm font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 transition-colors"
+          class="inline-flex justify-center items-center py-3 px-6 border border-transparent shadow-md text-sm font-bold rounded-lg text-white transition-all duration-200 disabled:bg-gray-400 hover:scale-[1.01] active:scale-[0.99]"
+          :style="primaryBtnStyle"
         >
           <svg
             v-if="isSubmitting"
@@ -188,7 +193,7 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          {{ isSubmitting ? 'Confirming on Chain...' : 'Deposit & Create Bounty' }}
+          {{ isSubmitting ? t('create.confirming') : t('create.submit') }}
         </button>
       </div>
     </form>
@@ -196,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { Contract, ethers } from 'ethers';
@@ -204,11 +209,59 @@ import { useWeb3 } from '../composables/useWeb3';
 import { useToast } from '../composables/useToast';
 import ERC20ABI from '../abis/ERC20.json';
 import { uploadToIpfs } from '../services/ipfs';
+import { useI18n } from 'vue-i18n';
 
 const userStore = useUserStore();
 const { getBountyContract, getSigner } = useWeb3();
 const router = useRouter();
 const { showToast } = useToast();
+const { t } = useI18n();
+
+const titleStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const labelStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const mutedStyle = computed(() => ({
+  color: `rgb(var(--muted))`,
+}));
+
+const panelStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.75)`,
+  borderColor: `rgb(var(--border))`,
+  borderWidth: '1px',
+}));
+
+const subPanelStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface-2), 0.45)`,
+  borderColor: `rgba(var(--primary), 0.20)`,
+}));
+
+const inputStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.65)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--text))`,
+}));
+
+const dividerStyle = computed(() => ({
+  borderColor: `rgb(var(--border))`,
+}));
+
+const primaryBtnStyle = computed(() => ({
+  background: `linear-gradient(135deg, rgb(var(--primary)) 0%, rgb(var(--primary-2)) 100%)`,
+}));
+
+const warningStyle = computed(() => ({
+  backgroundColor: 'rgba(245, 158, 11, 0.14)',
+  borderLeftColor: 'rgba(245, 158, 11, 0.65)',
+}));
+
+const warningTextStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
 
 const isSubmitting = ref(false);
 const errorMsg = ref('');
@@ -293,7 +346,7 @@ const submitBounty = async () => {
     minimumRewardWei.value = await contract.minimumReward();
 
     if (autoUploadDesc.value && form.markdown.trim().length > 0) {
-      showToast('Uploading details to IPFS...', 'info');
+      showToast(t('create.uploading'), 'info');
       const uploaded = await uploadToIpfs({
         title: form.title || 'Bounty details',
         markdown: form.markdown,
@@ -337,7 +390,7 @@ const submitBounty = async () => {
     if (isERC20) {
       const token = await getTokenContract();
       await ensureAllowance(token, bountyContractAddress, parsedReward);
-      showToast('Creating bounty...', 'info');
+      showToast(t('create.creating'), 'info');
 
       const tx = await contract.createBounty(
         form.title,
@@ -370,7 +423,7 @@ const submitBounty = async () => {
     form.tokenAddress = '';
     form.reward = '';
     form.deadline = '';
-    showToast('Bounty created successfully! Redirecting...', 'success');
+    showToast(t('create.success'), 'success');
     setTimeout(() => {
       router.push('/bounties');
     }, 1500);
@@ -382,7 +435,7 @@ const submitBounty = async () => {
     } else {
       errorMsg.value = 'Transaction failed or rejected.';
     }
-    showToast('Failed to create bounty', 'error');
+    showToast(t('create.fail'), 'error');
     console.error('Error creating bounty:', err);
   } finally {
     isSubmitting.value = false;

@@ -5,43 +5,42 @@
       <div class="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div class="space-y-3 max-w-2xl">
           <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
-            Ship faster with on-chain bounties.
+            {{ t('home.title') }}
           </h1>
           <p class="text-gray-600 leading-7">
-            Post tasks, fund rewards, and let builders submit proofs — settle transparently
-            on-chain.
+            {{ t('home.subtitle') }}
           </p>
           <div class="flex flex-wrap gap-3 pt-2">
             <router-link
               to="/create"
               class="px-5 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
             >
-              Create a bounty
+              {{ t('home.ctaCreate') }}
             </router-link>
             <router-link
               to="/bounties"
               class="px-5 py-3 rounded-lg bg-white border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
-              Browse bounties
+              {{ t('home.ctaBrowse') }}
             </router-link>
           </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:max-w-xl">
           <div class="rounded-xl border border-gray-200 bg-white/80 p-4">
-            <p class="text-xs font-semibold text-gray-500">TVL (ETH only)</p>
+            <p class="text-xs font-semibold text-gray-500">{{ t('home.tvl') }}</p>
             <p class="text-xl font-extrabold text-gray-900 mt-1">{{ tvlEth }} ETH</p>
-            <p class="text-xs text-gray-500 mt-1">ERC20 rewards excluded</p>
+            <p class="text-xs text-gray-500 mt-1">{{ t('home.tvlHint') }}</p>
           </div>
           <div class="rounded-xl border border-gray-200 bg-white/80 p-4">
-            <p class="text-xs font-semibold text-gray-500">Total bounties</p>
+            <p class="text-xs font-semibold text-gray-500">{{ t('home.total') }}</p>
             <p class="text-xl font-extrabold text-gray-900 mt-1">{{ totalCount }}</p>
-            <p class="text-xs text-gray-500 mt-1">On-chain tasks created</p>
+            <p class="text-xs text-gray-500 mt-1">{{ t('home.totalHint') }}</p>
           </div>
           <div class="rounded-xl border border-gray-200 bg-white/80 p-4">
-            <p class="text-xs font-semibold text-gray-500">Open now</p>
+            <p class="text-xs font-semibold text-gray-500">{{ t('home.open') }}</p>
             <p class="text-xl font-extrabold text-gray-900 mt-1">{{ openCount }}</p>
-            <p class="text-xs text-gray-500 mt-1">Ready for submissions</p>
+            <p class="text-xs text-gray-500 mt-1">{{ t('home.openHint') }}</p>
           </div>
         </div>
       </div>
@@ -49,14 +48,14 @@
 
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-xl font-bold text-gray-900">Latest open bounties</h2>
-        <p class="text-sm text-gray-500">Jump into the newest tasks that are accepting work.</p>
+        <h2 class="text-xl font-bold text-gray-900">{{ t('home.latestTitle') }}</h2>
+        <p class="text-sm text-gray-500">{{ t('home.latestSubtitle') }}</p>
       </div>
       <router-link
         to="/bounties"
         class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
       >
-        View all
+        {{ t('home.viewAll') }}
       </router-link>
     </div>
 
@@ -81,12 +80,12 @@
       v-else-if="latestOpen.length === 0"
       class="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center"
     >
-      <p class="text-gray-600">No open bounties yet. Be the first to post one.</p>
+      <p class="text-gray-600">{{ t('home.empty') }}</p>
       <router-link
         to="/create"
         class="inline-flex mt-4 px-5 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
       >
-        Create a bounty
+        {{ t('home.ctaCreate') }}
       </router-link>
     </div>
 
@@ -109,9 +108,11 @@ import { useBounty } from '../composables/useBounty';
 import type { Bounty } from '../types';
 import { formatTokenAmount, getTokenMeta, shortenHex, ZERO_ADDRESS } from '../utils/token';
 import { getHiddenBountyIds } from '../services/spamGuard';
+import { useI18n } from 'vue-i18n';
 
 const { bounties, loading, loadBounties } = useBounty();
 const zeroAddress = ZERO_ADDRESS;
+const { t } = useI18n();
 
 const rpcUrl = import.meta.env.VITE_RPC_URL || 'http://127.0.0.1:8545';
 const readProvider = new JsonRpcProvider(rpcUrl);

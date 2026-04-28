@@ -1,12 +1,16 @@
 <template>
   <section class="space-y-8">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">My Profile</h1>
-      <p class="text-sm text-gray-500">Your published tasks and submissions on-chain.</p>
+      <h1 class="text-2xl font-bold" :style="titleStyle">{{ t('profile.title') }}</h1>
+      <p class="text-sm" :style="mutedStyle">{{ t('profile.subtitle') }}</p>
     </div>
 
-    <div v-if="!userStore.isConnected" class="rounded-xl border border-dashed border-gray-300 bg-white p-8">
-      <p class="text-sm text-gray-600">Connect wallet to view your profile.</p>
+    <div
+      v-if="!userStore.isConnected"
+      class="rounded-xl border border-dashed p-8 ui-glow"
+      :style="panelStyle"
+    >
+      <p class="text-sm" :style="mutedStyle">{{ t('profile.connectHint') }}</p>
     </div>
 
     <div v-else class="space-y-8">
@@ -14,93 +18,102 @@
         {{ error }}
       </div>
 
-      <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
+      <div class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border" :style="panelStyle">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-gray-900">Published by me</h2>
+          <h2 class="text-lg font-semibold" :style="titleStyle">{{ t('profile.published') }}</h2>
           <button
-            class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+            class="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:bg-gray-400"
+            :style="primaryBtnStyle"
             :disabled="loading"
             @click="load"
           >
-            {{ loading ? 'Refreshing...' : 'Refresh' }}
+            {{ loading ? t('common.refreshing') : t('common.refresh') }}
           </button>
         </div>
 
-        <div v-if="loading" class="text-sm text-gray-500">Loading...</div>
+        <div v-if="loading" class="text-sm" :style="mutedStyle">{{ t('profile.loading') }}</div>
 
-        <div v-else-if="published.length === 0" class="text-sm text-gray-500">No published bounties yet.</div>
+        <div v-else-if="published.length === 0" class="text-sm" :style="mutedStyle">
+          {{ t('profile.nonePublished') }}
+        </div>
 
         <div v-else class="grid grid-cols-1 gap-4">
           <article
             v-for="item in published"
             :key="item.id"
-            class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3"
+            class="rounded-xl border p-5 shadow-sm space-y-3 transition-transform duration-200 hover:-translate-y-0.5"
+            :style="panelStyle"
           >
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-base font-semibold text-gray-900">#{{ item.id }} - {{ item.title }}</h3>
-                <p class="text-xs text-gray-500 break-all">Publisher: {{ item.publisher }}</p>
+                <h3 class="text-base font-semibold" :style="titleStyle">#{{ item.id }} - {{ item.title }}</h3>
+                <p class="text-xs break-all" :style="mutedStyle">
+                  {{ t('common.publisher') }}: {{ item.publisher }}
+                </p>
               </div>
-              <span class="text-xs font-semibold px-2 py-1 rounded-full" :class="statusClass(item.status)">
-                {{ item.status }}
-              </span>
+              <StatusBadge :status="item.status" />
             </div>
 
-            <p class="text-sm text-gray-700 break-all">
-              <span class="font-medium">Description:</span>
+            <p class="text-sm break-all" :style="textStyle">
+              <span class="font-medium">{{ t('common.description') }}:</span>
               {{ item.descriptionURI }}
             </p>
 
             <div class="pt-2 flex justify-end">
               <router-link
                 :to="`/bounties/${item.id}`"
-                class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                class="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                :style="primaryBtnStyle"
               >
-                View & Action
+                {{ t('common.viewAction') }}
               </router-link>
             </div>
           </article>
         </div>
       </div>
 
-      <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
-        <h2 class="text-lg font-semibold text-gray-900">Participated by me</h2>
+      <div class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border" :style="panelStyle">
+        <h2 class="text-lg font-semibold" :style="titleStyle">{{ t('profile.participated') }}</h2>
 
         <div v-if="indexing" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          Indexing on-chain history... {{ indexingText }}
+          {{ t('profile.indexing') }} {{ indexingText }}
         </div>
 
-        <div v-if="loading" class="text-sm text-gray-500">Loading...</div>
+        <div v-if="loading" class="text-sm" :style="mutedStyle">{{ t('profile.loading') }}</div>
 
-        <div v-else-if="participated.length === 0" class="text-sm text-gray-500">No submissions yet.</div>
+        <div v-else-if="participated.length === 0" class="text-sm" :style="mutedStyle">
+          {{ t('profile.noneSubmissions') }}
+        </div>
 
         <div v-else class="grid grid-cols-1 gap-4">
           <article
             v-for="item in participated"
             :key="item.id"
-            class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3"
+            class="rounded-xl border p-5 shadow-sm space-y-3 transition-transform duration-200 hover:-translate-y-0.5"
+            :style="panelStyle"
           >
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-base font-semibold text-gray-900">#{{ item.id }} - {{ item.title }}</h3>
-                <p class="text-xs text-gray-500 break-all">Publisher: {{ item.publisher }}</p>
+                <h3 class="text-base font-semibold" :style="titleStyle">#{{ item.id }} - {{ item.title }}</h3>
+                <p class="text-xs break-all" :style="mutedStyle">
+                  {{ t('common.publisher') }}: {{ item.publisher }}
+                </p>
               </div>
-              <span class="text-xs font-semibold px-2 py-1 rounded-full" :class="statusClass(item.status)">
-                {{ item.status }}
-              </span>
+              <StatusBadge :status="item.status" />
             </div>
 
-            <p class="text-sm text-gray-700 break-all">
-              <span class="font-medium">Description:</span>
+            <p class="text-sm break-all" :style="textStyle">
+              <span class="font-medium">{{ t('common.description') }}:</span>
               {{ item.descriptionURI }}
             </p>
 
             <div class="pt-2 flex justify-end">
               <router-link
                 :to="`/bounties/${item.id}`"
-                class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                class="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                :style="primaryBtnStyle"
               >
-                View & Action
+                {{ t('common.viewAction') }}
               </router-link>
             </div>
           </article>
@@ -108,10 +121,11 @@
 
         <div v-if="!loading" class="pt-2">
           <button
-            class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            class="px-4 py-2 rounded-lg border text-sm font-semibold transition-colors"
+            :style="secondaryBtnStyle"
             @click="load"
           >
-            Retry / Refresh
+            {{ t('profile.retry') }}
           </button>
         </div>
       </div>
@@ -123,7 +137,38 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useUserStore } from '../stores/userStore';
 import { useBounty } from '../composables/useBounty';
-import type { Bounty, BountyStatus } from '../types';
+import type { Bounty } from '../types';
+import StatusBadge from '../components/features/StatusBadge.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
+const titleStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const textStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const mutedStyle = computed(() => ({
+  color: `rgb(var(--muted))`,
+}));
+
+const panelStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.75)`,
+  borderColor: `rgb(var(--border))`,
+}));
+
+const primaryBtnStyle = computed(() => ({
+  background: `linear-gradient(135deg, rgb(var(--primary)) 0%, rgb(var(--primary-2)) 100%)`,
+}));
+
+const secondaryBtnStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.55)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--text))`,
+}));
 
 const userStore = useUserStore();
 const { bounties, loadBounties, getSubmittedBountyIdsByHunter, getBountyById } = useBounty();
@@ -141,13 +186,6 @@ const published = computed(() => {
   if (!me) return [];
   return bounties.value.filter((b) => b.publisher.toLowerCase() === me);
 });
-
-const statusClass = (status: BountyStatus) => {
-  if (status === 'OPEN') return 'bg-blue-100 text-blue-700';
-  if (status === 'WORK_SUBMITTED') return 'bg-amber-100 text-amber-700';
-  if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
-  return 'bg-gray-200 text-gray-700';
-};
 
 const load = async () => {
   if (!userStore.isConnected) return;

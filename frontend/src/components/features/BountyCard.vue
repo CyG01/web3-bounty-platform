@@ -1,32 +1,34 @@
 <template>
-  <article class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
+  <article class="rounded-xl border p-5 shadow-sm space-y-3" :style="cardStyle">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
-        <h2 class="text-lg font-semibold text-gray-900 truncate">
+        <h2 class="text-lg font-semibold truncate" :style="titleStyle">
           #{{ props.bounty.id }} - {{ props.bounty.title }}
         </h2>
-        <p class="text-xs text-gray-500 break-all">Publisher: {{ props.bounty.publisher }}</p>
+        <p class="text-xs break-all" :style="mutedStyle">
+          {{ t('common.publisher') }}: {{ props.bounty.publisher }}
+        </p>
       </div>
       <StatusBadge :status="props.bounty.status" />
     </div>
 
-    <p class="text-sm text-gray-700 break-all">
-      <span class="font-medium">Description:</span>
+    <p class="text-sm break-all" :style="textStyle">
+      <span class="font-medium">{{ t('common.description') }}:</span>
       {{ props.bounty.descriptionURI }}
     </p>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-      <div class="rounded-lg bg-gray-50 px-3 py-2">
-        <p class="text-gray-500">Reward</p>
-        <p class="font-semibold text-gray-900 break-all">{{ props.rewardText }}</p>
+      <div class="rounded-lg px-3 py-2" :style="metricStyle">
+        <p :style="mutedStyle">{{ t('common.reward') }}</p>
+        <p class="font-semibold break-all" :style="titleStyle">{{ props.rewardText }}</p>
       </div>
-      <div class="rounded-lg bg-gray-50 px-3 py-2">
-        <p class="text-gray-500">Deadline</p>
-        <p class="font-semibold text-gray-900">{{ formatDate(props.bounty.deadline) }}</p>
+      <div class="rounded-lg px-3 py-2" :style="metricStyle">
+        <p :style="mutedStyle">{{ t('common.deadline') }}</p>
+        <p class="font-semibold" :style="titleStyle">{{ formatDate(props.bounty.deadline) }}</p>
       </div>
-      <div class="rounded-lg bg-gray-50 px-3 py-2">
-        <p class="text-gray-500">Winner</p>
-        <p class="font-semibold text-gray-900 break-all">
+      <div class="rounded-lg px-3 py-2" :style="metricStyle">
+        <p :style="mutedStyle">{{ t('common.winner') }}</p>
+        <p class="font-semibold break-all" :style="titleStyle">
           {{ props.bounty.successfulHunter === zeroAddress ? '-' : props.bounty.successfulHunter }}
         </p>
       </div>
@@ -37,9 +39,10 @@
       <slot name="actions">
         <router-link
           :to="`/bounties/${props.bounty.id}`"
-          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+          class="px-4 py-2 rounded-lg text-white text-sm font-semibold"
+          :style="primaryBtnStyle"
         >
-          View & Action
+          {{ t('common.viewAction') }}
         </router-link>
       </slot>
     </div>
@@ -50,6 +53,8 @@
 import type { Bounty } from '../../types';
 import StatusBadge from './StatusBadge.vue';
 import { ZERO_ADDRESS } from '../../utils/token';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   bounty: Bounty;
@@ -58,4 +63,31 @@ const props = defineProps<{
 
 const zeroAddress = ZERO_ADDRESS;
 const formatDate = (unix: number) => new Date(unix * 1000).toLocaleString();
+
+const { t } = useI18n();
+
+const cardStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.75)`,
+  borderColor: `rgb(var(--border))`,
+}));
+
+const metricStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface-2), 0.55)`,
+}));
+
+const titleStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const textStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const mutedStyle = computed(() => ({
+  color: `rgb(var(--muted))`,
+}));
+
+const primaryBtnStyle = computed(() => ({
+  background: `linear-gradient(135deg, rgb(var(--primary)) 0%, rgb(var(--primary-2)) 100%)`,
+}));
 </script>

@@ -2,16 +2,17 @@
   <section class="space-y-6">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Bounty #{{ bountyId }}</h1>
-        <p v-if="bounty" class="text-sm text-gray-500 break-all">
-          Publisher: {{ bounty.publisher }}
+        <h1 class="text-2xl font-bold" :style="titleStyle">Bounty #{{ bountyId }}</h1>
+        <p v-if="bounty" class="text-sm break-all" :style="mutedStyle">
+          {{ t('common.publisher') }}: {{ bounty.publisher }}
         </p>
       </div>
       <router-link
         to="/bounties"
-        class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+        class="px-4 py-2 rounded-lg border text-sm font-semibold transition-colors"
+        :style="secondaryBtnStyle"
       >
-        Back
+        {{ t('detail.backToList') }}
       </router-link>
     </div>
 
@@ -22,31 +23,27 @@
       {{ error }}
     </div>
 
-    <div v-if="loading" class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      Loading...
+    <div v-if="loading" class="rounded-xl border p-5 shadow-sm ui-glow" :style="panelStyle">
+      {{ t('detail.loading') }}
     </div>
 
     <div
       v-else-if="bounty"
-      class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4"
+      class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border"
+      :style="panelStyle"
     >
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 class="text-lg font-semibold text-gray-900">{{ bounty.title }}</h2>
-          <p class="text-sm text-gray-600 break-all">{{ bounty.descriptionURI }}</p>
+          <h2 class="text-lg font-semibold" :style="titleStyle">{{ bounty.title }}</h2>
+          <p class="text-sm break-all" :style="mutedStyle">{{ bounty.descriptionURI }}</p>
         </div>
-        <span
-          class="text-xs font-semibold px-2 py-1 rounded-full"
-          :class="statusClass(bounty.status)"
-        >
-          {{ bounty.status }}
-        </span>
+        <StatusBadge :status="bounty.status" />
       </div>
 
-      <div class="border-t border-gray-200 pt-4 space-y-3">
-        <h3 class="text-base font-semibold text-gray-900">Description</h3>
+      <div class="border-t pt-4 space-y-3" :style="dividerStyle">
+        <h3 class="text-base font-semibold" :style="titleStyle">{{ t('detail.description') }}</h3>
 
-        <div v-if="descLoading" class="text-sm text-gray-500">Loading description from URI...</div>
+        <div v-if="descLoading" class="text-sm" :style="mutedStyle">{{ t('detail.loadingDesc') }}</div>
         <div
           v-else-if="descError"
           class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3"
@@ -55,11 +52,12 @@
         </div>
         <div
           v-else-if="descHtml"
-          class="prose prose-sm max-w-none text-gray-800"
+          class="prose prose-sm max-w-none"
+          :style="textStyle"
           v-html="descHtml"
         />
-        <div v-else class="text-sm text-gray-500">
-          No parsed description available. Open the URI above to view details.
+        <div v-else class="text-sm" :style="mutedStyle">
+          {{ t('detail.noParsedDesc') }}
         </div>
 
         <div v-if="desc?.images?.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
@@ -69,7 +67,8 @@
             :href="ipfsToHttp(img)"
             target="_blank"
             rel="noreferrer"
-            class="rounded-lg border border-gray-200 overflow-hidden bg-white hover:border-gray-300"
+            class="rounded-lg border overflow-hidden hover:-translate-y-0.5 transition-transform duration-200"
+            :style="panelStyle"
           >
             <img :src="ipfsToHttp(img)" alt="bounty image" class="w-full h-56 object-cover" />
           </a>
@@ -77,73 +76,77 @@
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-        <div class="rounded-lg bg-gray-50 px-3 py-2">
-          <p class="text-gray-500">Reward</p>
-          <p class="font-semibold text-gray-900 break-all">{{ rewardLabel }}</p>
+        <div class="rounded-lg px-3 py-2" :style="metricStyle">
+          <p :style="mutedStyle">{{ t('common.reward') }}</p>
+          <p class="font-semibold break-all" :style="titleStyle">{{ rewardLabel }}</p>
         </div>
-        <div class="rounded-lg bg-gray-50 px-3 py-2">
-          <p class="text-gray-500">Deadline</p>
-          <p class="font-semibold text-gray-900">{{ formatDate(bounty.deadline) }}</p>
+        <div class="rounded-lg px-3 py-2" :style="metricStyle">
+          <p :style="mutedStyle">{{ t('common.deadline') }}</p>
+          <p class="font-semibold" :style="titleStyle">{{ formatDate(bounty.deadline) }}</p>
         </div>
-        <div class="rounded-lg bg-gray-50 px-3 py-2">
-          <p class="text-gray-500">Winner</p>
-          <p class="font-semibold text-gray-900 break-all">
+        <div class="rounded-lg px-3 py-2" :style="metricStyle">
+          <p :style="mutedStyle">{{ t('common.winner') }}</p>
+          <p class="font-semibold break-all" :style="titleStyle">
             {{ bounty.successfulHunter === zeroAddress ? '-' : bounty.successfulHunter }}
           </p>
         </div>
       </div>
 
-      <div class="border-t border-gray-200 pt-4 space-y-4">
-        <h3 class="text-base font-semibold text-gray-900">Submissions</h3>
+      <div class="border-t pt-4 space-y-4" :style="dividerStyle">
+        <h3 class="text-base font-semibold" :style="titleStyle">{{ t('detail.submissions') }}</h3>
 
-        <div v-if="hunters.length === 0" class="text-sm text-gray-500">No submissions yet.</div>
+        <div v-if="hunters.length === 0" class="text-sm" :style="mutedStyle">{{ t('detail.noSubmissions') }}</div>
 
         <div v-else class="space-y-3">
           <div
             v-for="item in submissions"
             :key="item.hunter"
-            class="rounded-lg border border-gray-200 bg-white px-4 py-3 flex flex-col gap-2"
+            class="rounded-lg border px-4 py-3 flex flex-col gap-2 ui-glow"
+            :style="panelStyle"
           >
             <div class="flex items-center justify-between gap-4">
-              <p class="text-xs text-gray-500 break-all">Hunter: {{ item.hunter }}</p>
-              <p class="text-xs text-gray-400">
+              <p class="text-xs break-all" :style="mutedStyle">Hunter: {{ item.hunter }}</p>
+              <p class="text-xs" :style="mutedStyle">
                 {{ item.timestamp ? formatDate(item.timestamp) : '-' }}
               </p>
             </div>
-            <p class="text-sm text-gray-700 break-all">{{ item.proofURI || '-' }}</p>
+            <p class="text-sm break-all" :style="textStyle">{{ item.proofURI || '-' }}</p>
 
             <button
               v-if="canApprove()"
-              class="self-end px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:bg-gray-400"
+              class="self-end px-4 py-2 rounded-lg text-white text-sm font-semibold transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:bg-gray-400"
+              :style="approveBtnStyle"
               :disabled="actionLoading"
               @click="approve(item.hunter)"
             >
-              {{ actionLoading ? 'Approving...' : 'Approve & Pay' }}
+              {{ actionLoading ? t('detail.approving') : t('detail.approvePay') }}
             </button>
           </div>
         </div>
       </div>
 
-      <div class="border-t border-gray-200 pt-4 space-y-3">
-        <h3 class="text-base font-semibold text-gray-900">Submit your work</h3>
+      <div class="border-t pt-4 space-y-3" :style="dividerStyle">
+        <h3 class="text-base font-semibold" :style="titleStyle">{{ t('detail.submitWork') }}</h3>
 
-        <div v-if="!userStore.isConnected" class="text-sm text-gray-500">
-          Connect wallet to submit.
+        <div v-if="!userStore.isConnected" class="text-sm" :style="mutedStyle">
+          {{ t('detail.connectToSubmit') }}
         </div>
 
         <div v-else class="flex flex-col sm:flex-row gap-3">
           <input
             v-model="proofURI"
             type="text"
-            class="flex-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
+            class="flex-1 block w-full rounded-lg shadow-sm sm:text-sm py-3 px-4 border transition-colors"
+            :style="inputStyle"
             placeholder="ipfs://... or https://..."
           />
           <button
-            class="px-5 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+            class="px-5 py-3 rounded-lg text-white text-sm font-semibold transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:bg-gray-400"
+            :style="primaryBtnStyle"
             :disabled="actionLoading || !proofURI"
             @click="submit"
           >
-            {{ actionLoading ? 'Submitting...' : 'Submit Work' }}
+            {{ actionLoading ? t('detail.submitting') : t('detail.submitBtn') }}
           </button>
         </div>
       </div>
@@ -161,9 +164,57 @@ import { useBounty } from '../composables/useBounty';
 import { useWeb3 } from '../composables/useWeb3';
 import { useToast } from '../composables/useToast';
 import { useUserStore } from '../stores/userStore';
-import type { BountyStatus } from '../types';
 import { formatTokenAmount, getTokenMeta, ZERO_ADDRESS } from '../utils/token';
 import { ipfsToHttp, loadBountyDescription, type BountyDescription } from '../services/ipfs';
+import StatusBadge from '../components/features/StatusBadge.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
+const titleStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const textStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const mutedStyle = computed(() => ({
+  color: `rgb(var(--muted))`,
+}));
+
+const panelStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.75)`,
+  borderColor: `rgb(var(--border))`,
+}));
+
+const metricStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface-2), 0.55)`,
+}));
+
+const dividerStyle = computed(() => ({
+  borderColor: `rgb(var(--border))`,
+}));
+
+const inputStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.65)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--text))`,
+}));
+
+const primaryBtnStyle = computed(() => ({
+  background: `linear-gradient(135deg, rgb(var(--primary)) 0%, rgb(var(--primary-2)) 100%)`,
+}));
+
+const approveBtnStyle = computed(() => ({
+  background: `linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(16, 185, 129, 0.95) 100%)`,
+}));
+
+const secondaryBtnStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.55)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--text))`,
+}));
 
 const route = useRoute();
 const bountyId = Number(route.params.id);
@@ -200,13 +251,6 @@ const descHtml = computed(() => {
 });
 
 const formatDate = (unix: number) => new Date(unix * 1000).toLocaleString();
-
-const statusClass = (status: BountyStatus) => {
-  if (status === 'OPEN') return 'bg-blue-100 text-blue-700';
-  if (status === 'WORK_SUBMITTED') return 'bg-amber-100 text-amber-700';
-  if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
-  return 'bg-gray-200 text-gray-700';
-};
 
 const rewardLabel = computed(() => {
   if (!bounty.value) return '-';
@@ -274,7 +318,7 @@ const submit = async () => {
     const contract = await getBountyContract();
     const tx = await contract.submitWork(bountyId, proofURI.value);
     await tx.wait();
-    showToast('Work submitted!', 'success');
+    showToast(t('detail.workSubmitted'), 'success');
     proofURI.value = '';
     await loadDetail();
   } catch (err: unknown) {
@@ -291,7 +335,7 @@ const approve = async (hunter: string) => {
     const contract = await getBountyContract();
     const tx = await contract.approveWork(bountyId, hunter);
     await tx.wait();
-    showToast('Approved and paid!', 'success');
+    showToast(t('detail.approvedPaid'), 'success');
     await loadDetail();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Approve failed';
