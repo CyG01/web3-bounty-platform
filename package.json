@@ -20,6 +20,7 @@
     "vue-eslint-parser": "^10.4.0"
   },
   "scripts": {
+    "start:all": "start-all.bat",
     "test": "hardhat test",
     "compile": "hardhat compile",
     "coverage": "hardhat coverage",

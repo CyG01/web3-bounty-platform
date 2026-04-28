@@ -6,6 +6,17 @@ import { loadDeployment, networkNameFromChainId } from '../services/deployments'
 import EthereumProvider from '@walletconnect/ethereum-provider';
 
 const BOUNTY_CONTRACT_ADDRESS = import.meta.env.VITE_BOUNTY_CONTRACT_ADDRESS || '';
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
+
+type ConnectMode = 'injected' | 'walletconnect' | 'auto' | 'metamask' | 'okx' | 'coinbase';
+
+type InjectedProviderLike = {
+  isMetaMask?: boolean;
+  isOkxWallet?: boolean;
+  isCoinbaseWallet?: boolean;
+  request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: string, cb: (...args: unknown[]) => void) => void;
+};
 
 export function useWeb3() {
   const userStore = useUserStore();
@@ -13,16 +24,43 @@ export function useWeb3() {
   const wcProvider = ref<EthereumProvider | null>(null);
   const error = ref<string>('');
 
-  const initInjectedProvider = () => {
-    if (!window.ethereum) return false;
-    provider.value = new BrowserProvider(window.ethereum);
+  const listInjectedProviders = () => {
+    const ethereumAny = window.ethereum as unknown as {
+      providers?: InjectedProviderLike[];
+    } & InjectedProviderLike;
+
+    if (!ethereumAny) return [] as InjectedProviderLike[];
+    const list = Array.isArray(ethereumAny.providers) ? ethereumAny.providers : [ethereumAny];
+    return list;
+  };
+
+  const pickInjectedProvider = (mode: ConnectMode) => {
+    const providers = listInjectedProviders();
+    if (!providers.length) return null;
+
+    if (mode === 'metamask') {
+      return providers.find((p) => p.isMetaMask) || null;
+    }
+    if (mode === 'okx') {
+      return providers.find((p) => p.isOkxWallet) || null;
+    }
+    if (mode === 'coinbase') {
+      return providers.find((p) => p.isCoinbaseWallet) || null;
+    }
+    return providers[0] || null;
+  };
+
+  const initInjectedProvider = (mode: ConnectMode = 'injected') => {
+    const picked = pickInjectedProvider(mode);
+    if (!picked) return false;
+    provider.value = new BrowserProvider(picked as unknown as never);
     return true;
   };
 
   const initWalletConnectProvider = async () => {
-    const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
+    const projectId = WALLETCONNECT_PROJECT_ID;
     if (!projectId) {
-      throw new Error('VITE_WALLETCONNECT_PROJECT_ID is not configured');
+      throw new Error('WalletConnect is not configured. Please set VITE_WALLETCONNECT_PROJECT_ID.');
     }
     if (wcProvider.value) return wcProvider.value;
 
@@ -43,7 +81,7 @@ export function useWeb3() {
     return wcProvider.value;
   };
 
-  const connectWallet = async (mode: 'injected' | 'walletconnect' | 'auto' = 'auto') => {
+  const connectWallet = async (mode: ConnectMode = 'auto') => {
     try {
       error.value = '';
       let accounts: string[] = [];
@@ -55,7 +93,9 @@ export function useWeb3() {
         setupEventListeners();
         accounts = (await provider.value.send('eth_requestAccounts', [])) as string[];
       } else {
-        const hasInjected = initInjectedProvider();
+        const injectedMode: ConnectMode =
+          mode === 'metamask' || mode === 'okx' || mode === 'coinbase' ? mode : 'injected';
+        const hasInjected = initInjectedProvider(injectedMode);
         if (hasInjected && provider.value) {
           accounts = (await provider.value.send('eth_requestAccounts', [])) as string[];
         } else if (mode === 'auto') {
@@ -66,7 +106,9 @@ export function useWeb3() {
           accounts = (await provider.value.send('eth_requestAccounts', [])) as string[];
           mode = 'walletconnect';
         } else {
-          throw new Error('No injected wallet found');
+          throw new Error(
+            'No compatible browser wallet found. Install MetaMask/OKX/Coinbase or use WalletConnect.'
+          );
         }
       }
 
@@ -172,5 +214,6 @@ export function useWeb3() {
     getSigner,
     getBountyContract,
     error,
+    hasWalletConnectConfig: Boolean(WALLETCONNECT_PROJECT_ID),
   };
 }
