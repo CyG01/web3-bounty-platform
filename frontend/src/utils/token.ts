@@ -72,7 +72,7 @@ export function readTokenMetaCache(tokenAddress: string): TokenMeta | null {
   if (memoryCache[key]) return memoryCache[key];
 
   try {
-    const raw = localStorage.getItem(`${CACHE_PREFIX}${key}`);
+    const raw = globalThis.localStorage?.getItem(`${CACHE_PREFIX}${key}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as TokenMeta;
     if (!parsed?.symbol || typeof parsed.decimals !== 'number') return null;
@@ -89,13 +89,16 @@ export function writeTokenMetaCache(tokenAddress: string, meta: TokenMeta) {
   memoryCache[key] = meta;
 
   try {
-    localStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(meta));
+    globalThis.localStorage?.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(meta));
   } catch {
     // ignore storage errors
   }
 }
 
-export async function getTokenMeta(provider: JsonRpcProvider, tokenAddress: string): Promise<TokenMeta> {
+export async function getTokenMeta(
+  provider: JsonRpcProvider,
+  tokenAddress: string
+): Promise<TokenMeta> {
   const key = tokenAddress.toLowerCase();
   const cached = readTokenMetaCache(tokenAddress);
   if (cached) return cached;

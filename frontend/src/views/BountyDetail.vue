@@ -3,7 +3,9 @@
     <div class="flex items-start justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Bounty #{{ bountyId }}</h1>
-        <p v-if="bounty" class="text-sm text-gray-500 break-all">Publisher: {{ bounty.publisher }}</p>
+        <p v-if="bounty" class="text-sm text-gray-500 break-all">
+          Publisher: {{ bounty.publisher }}
+        </p>
       </div>
       <router-link
         to="/bounties"
@@ -13,7 +15,10 @@
       </router-link>
     </div>
 
-    <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <div
+      v-if="error"
+      class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+    >
       {{ error }}
     </div>
 
@@ -21,15 +26,52 @@
       Loading...
     </div>
 
-    <div v-else-if="bounty" class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
+    <div
+      v-else-if="bounty"
+      class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4"
+    >
       <div class="flex items-start justify-between gap-4">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">{{ bounty.title }}</h2>
           <p class="text-sm text-gray-600 break-all">{{ bounty.descriptionURI }}</p>
         </div>
-        <span class="text-xs font-semibold px-2 py-1 rounded-full" :class="statusClass(bounty.status)">
+        <span
+          class="text-xs font-semibold px-2 py-1 rounded-full"
+          :class="statusClass(bounty.status)"
+        >
           {{ bounty.status }}
         </span>
+      </div>
+
+      <div class="border-t border-gray-200 pt-4 space-y-3">
+        <h3 class="text-base font-semibold text-gray-900">Description</h3>
+
+        <div v-if="descLoading" class="text-sm text-gray-500">Loading description from URI...</div>
+        <div
+          v-else-if="descError"
+          class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3"
+        >
+          {{ descError }}
+        </div>
+        <div v-else-if="desc?.markdown" class="text-sm text-gray-800 whitespace-pre-wrap leading-6">
+          {{ desc.markdown }}
+        </div>
+        <div v-else class="text-sm text-gray-500">
+          No parsed description available. Open the URI above to view details.
+        </div>
+
+        <div v-if="desc?.images?.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <a
+            v-for="img in desc.images"
+            :key="img"
+            :href="ipfsToHttp(img)"
+            target="_blank"
+            rel="noreferrer"
+            class="rounded-lg border border-gray-200 overflow-hidden bg-white hover:border-gray-300"
+          >
+            <img :src="ipfsToHttp(img)" alt="bounty image" class="w-full h-56 object-cover" />
+          </a>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
@@ -62,12 +104,14 @@
           >
             <div class="flex items-center justify-between gap-4">
               <p class="text-xs text-gray-500 break-all">Hunter: {{ item.hunter }}</p>
-              <p class="text-xs text-gray-400">{{ item.timestamp ? formatDate(item.timestamp) : '-' }}</p>
+              <p class="text-xs text-gray-400">
+                {{ item.timestamp ? formatDate(item.timestamp) : '-' }}
+              </p>
             </div>
             <p class="text-sm text-gray-700 break-all">{{ item.proofURI || '-' }}</p>
 
             <button
-              v-if="canApprove(item.hunter)"
+              v-if="canApprove()"
               class="self-end px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:bg-gray-400"
               :disabled="actionLoading"
               @click="approve(item.hunter)"
@@ -115,6 +159,7 @@ import { useToast } from '../composables/useToast';
 import { useUserStore } from '../stores/userStore';
 import type { BountyStatus } from '../types';
 import { formatTokenAmount, getTokenMeta, ZERO_ADDRESS } from '../utils/token';
+import { ipfsToHttp, loadBountyDescription, type BountyDescription } from '../services/ipfs';
 
 const route = useRoute();
 const bountyId = Number(route.params.id);
@@ -138,6 +183,10 @@ const tokenRewardLabel = ref<string>('');
 
 const proofURI = ref('');
 
+const desc = ref<BountyDescription | null>(null);
+const descLoading = ref(false);
+const descError = ref('');
+
 const formatDate = (unix: number) => new Date(unix * 1000).toLocaleString();
 
 const statusClass = (status: BountyStatus) => {
@@ -159,6 +208,21 @@ const loadDetail = async () => {
 
   try {
     bounty.value = await getBountyById(bountyId);
+    desc.value = null;
+    descError.value = '';
+    if (bounty.value?.descriptionURI) {
+      descLoading.value = true;
+      try {
+        const parsed = await loadBountyDescription(bounty.value.descriptionURI);
+        desc.value = parsed;
+        if (!parsed) {
+          descError.value =
+            'Failed to load/parse description from URI (gateway blocked or invalid JSON).';
+        }
+      } finally {
+        descLoading.value = false;
+      }
+    }
     hunters.value = await getBountyHunters(bountyId);
 
     const items = await Promise.all(hunters.value.map((h) => getSubmission(bountyId, h)));
@@ -182,7 +246,7 @@ const loadDetail = async () => {
   }
 };
 
-const canApprove = (hunter: string) => {
+const canApprove = () => {
   if (!bounty.value) return false;
   if (!userStore.isConnected) return false;
   if (userStore.address.toLowerCase() !== bounty.value.publisher.toLowerCase()) return false;

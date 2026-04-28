@@ -40,7 +40,9 @@
 
     <form
       class="space-y-6 bg-white shadow-lg border border-gray-100 px-4 py-6 sm:rounded-xl sm:p-8"
-      :class="{ 'opacity-60 pointer-events-none grayscale-[30%]': !userStore.isConnected || isSubmitting }"
+      :class="{
+        'opacity-60 pointer-events-none grayscale-[30%]': !userStore.isConnected || isSubmitting,
+      }"
       @submit.prevent="submitBounty"
     >
       <div>
@@ -57,7 +59,9 @@
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-700">Description URI (IPFS / URL)</label>
+        <label class="block text-sm font-semibold text-gray-700"
+          >Description URI (IPFS / URL)</label
+        >
         <div class="mt-2">
           <input
             v-model="form.descURI"
@@ -135,7 +139,9 @@
 
       <div class="pt-6 border-t border-gray-200 mt-8 flex items-center justify-end">
         <span v-if="errorMsg" class="text-red-500 text-sm mr-4 font-medium">{{ errorMsg }}</span>
-        <span v-if="txHash" class="text-green-600 text-sm mr-4 font-medium">Tx Sent: {{ shortenTx(txHash) }}</span>
+        <span v-if="txHash" class="text-green-600 text-sm mr-4 font-medium"
+          >Tx Sent: {{ shortenTx(txHash) }}</span
+        >
 
         <button
           type="submit"
@@ -149,7 +155,14 @@
             fill="none"
             viewBox="0 0 24 24"
           >
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
             <path
               class="opacity-75"
               fill="currentColor"
@@ -200,6 +213,25 @@ const getTokenContract = async () => {
   const provider = new BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   return new Contract(form.tokenAddress, ERC20ABI, signer);
+};
+
+const ensureAllowance = async (token: Contract, spender: string, amount: bigint) => {
+  const owner = userStore.address;
+  if (!owner) throw new Error('Wallet not connected');
+
+  const current: bigint = await token.allowance(owner, spender);
+  if (current >= amount) return;
+
+  // USDT-like tokens require allowance to be zero before setting a new one
+  if (current > 0n) {
+    const tx0 = await token.approve(spender, 0);
+    txHash.value = tx0.hash;
+    await tx0.wait();
+  }
+
+  const tx = await token.approve(spender, amount);
+  txHash.value = tx.hash;
+  await tx.wait();
 };
 
 const loadTokenMeta = async () => {
@@ -258,17 +290,19 @@ const submitBounty = async () => {
       : ethers.parseEther(form.reward.toString());
     const deadlineTimestamp = Math.floor(new Date(form.deadline).getTime() / 1000);
 
-    if (deadlineTimestamp <= Math.floor(Date.now() / 1000)) {
+    // Validate against chain time instead of local device clock
+    const browserProvider = new BrowserProvider(window.ethereum);
+    const latestBlock = await browserProvider.getBlock('latest');
+    const chainNow = Number(latestBlock?.timestamp || 0);
+
+    if (deadlineTimestamp <= chainNow) {
       throw new Error('Deadline must be in the future');
     }
 
     if (isERC20) {
       const token = await getTokenContract();
-
-      const approveTx = await token.approve(bountyContractAddress, parsedReward);
-      txHash.value = approveTx.hash;
-      await approveTx.wait();
-      showToast('Token approved. Creating bounty...', 'info');
+      await ensureAllowance(token, bountyContractAddress, parsedReward);
+      showToast('Creating bounty...', 'info');
 
       const tx = await contract.createBounty(
         form.title,
@@ -307,7 +341,8 @@ const submitBounty = async () => {
   } catch (err: unknown) {
     if (typeof err === 'object' && err !== null) {
       const maybeErr = err as { info?: { error?: { message?: string } }; message?: string };
-      errorMsg.value = maybeErr.info?.error?.message || maybeErr.message || 'Transaction failed or rejected.';
+      errorMsg.value =
+        maybeErr.info?.error?.message || maybeErr.message || 'Transaction failed or rejected.';
     } else {
       errorMsg.value = 'Transaction failed or rejected.';
     }

@@ -1,20 +1,50 @@
 <template>
   <section class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Bounties</h1>
         <p class="text-sm text-gray-500">Browse on-chain tasks and track their status.</p>
       </div>
-      <button
-        class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
-        :disabled="loading"
-        @click="loadBounties"
-      >
-        {{ loading ? 'Refreshing...' : 'Refresh' }}
-      </button>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+          <button
+            v-for="t in tabs"
+            :key="t.id"
+            class="px-3 py-2 text-sm font-semibold rounded-md"
+            :class="
+              activeTab === t.id ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-50'
+            "
+            @click="activeTab = t.id"
+          >
+            {{ t.label }}
+            <span class="ml-1 text-xs opacity-80">({{ t.count }})</span>
+          </button>
+        </div>
+
+        <select
+          v-model="sortKey"
+          class="px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm font-semibold text-gray-700"
+        >
+          <option value="deadline_asc">Deadline ↑</option>
+          <option value="deadline_desc">Deadline ↓</option>
+          <option value="reward_desc">Reward ↓</option>
+          <option value="reward_asc">Reward ↑</option>
+        </select>
+
+        <button
+          class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+          :disabled="loading"
+          @click="loadBounties"
+        >
+          {{ loading ? 'Refreshing...' : 'Refresh' }}
+        </button>
+      </div>
     </div>
 
-    <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <div
+      v-if="error"
+      class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+    >
       {{ error }}
     </div>
 
@@ -32,66 +62,49 @@
       No bounty found on-chain yet. Create the first one!
     </div>
 
-    <div v-else class="grid grid-cols-1 gap-4">
-      <article
-        v-for="item in bounties"
-        :key="item.id"
-        class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3"
+    <div v-if="loading" class="grid grid-cols-1 gap-4">
+      <div
+        v-for="i in 6"
+        :key="i"
+        class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 animate-pulse"
       >
         <div class="flex items-start justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-semibold text-gray-900">
-              #{{ item.id }} - {{ item.title }}
-            </h2>
-            <p class="text-xs text-gray-500 break-all">Publisher: {{ item.publisher }}</p>
+          <div class="space-y-2 flex-1">
+            <div class="h-5 w-2/3 bg-gray-200 rounded" />
+            <div class="h-3 w-1/2 bg-gray-200 rounded" />
           </div>
-          <span class="text-xs font-semibold px-2 py-1 rounded-full" :class="statusClass(item.status)">
-            {{ item.status }}
-          </span>
+          <div class="h-6 w-24 bg-gray-200 rounded-full" />
         </div>
-
-        <p class="text-sm text-gray-700 break-all">
-          <span class="font-medium">Description:</span>
-          {{ item.descriptionURI }}
-        </p>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div class="rounded-lg bg-gray-50 px-3 py-2">
-            <p class="text-gray-500">Reward</p>
-            <p class="font-semibold text-gray-900 break-all">{{ rewardDisplay(item) }}</p>
-          </div>
-          <div class="rounded-lg bg-gray-50 px-3 py-2">
-            <p class="text-gray-500">Deadline</p>
-            <p class="font-semibold text-gray-900">{{ formatDate(item.deadline) }}</p>
-          </div>
-          <div class="rounded-lg bg-gray-50 px-3 py-2">
-            <p class="text-gray-500">Winner</p>
-            <p class="font-semibold text-gray-900 break-all">
-              {{ item.successfulHunter === zeroAddress ? '-' : item.successfulHunter }}
-            </p>
-          </div>
+        <div class="h-4 w-full bg-gray-200 rounded" />
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="h-14 bg-gray-200 rounded-lg" />
+          <div class="h-14 bg-gray-200 rounded-lg" />
+          <div class="h-14 bg-gray-200 rounded-lg" />
         </div>
-
-        <div class="pt-2 flex justify-end">
-          <router-link
-            :to="`/bounties/${item.id}`"
-            class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
-          >
-            View & Action
-          </router-link>
+        <div class="flex justify-end">
+          <div class="h-9 w-28 bg-gray-200 rounded-lg" />
         </div>
-      </article>
+      </div>
+    </div>
+
+    <div v-else class="grid grid-cols-1 gap-4">
+      <BountyCard
+        v-for="item in viewItems"
+        :key="item.id"
+        :bounty="item"
+        :reward-text="rewardDisplay(item)"
+      />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useBounty } from '../composables/useBounty';
-import type { BountyStatus } from '../types';
 import type { Bounty } from '../types';
 import { JsonRpcProvider } from 'ethers';
 import { formatTokenAmount, getTokenMeta, shortenHex, ZERO_ADDRESS } from '../utils/token';
+import BountyCard from '../components/features/BountyCard.vue';
 
 const { bounties, loading, error, loadBounties } = useBounty();
 const zeroAddress = ZERO_ADDRESS;
@@ -128,14 +141,50 @@ const rewardDisplay = (item: Bounty) => {
   }
 };
 
-const formatDate = (unix: number) => new Date(unix * 1000).toLocaleString();
+type TabId = 'all' | 'active' | 'completed';
+const activeTab = ref<TabId>('all');
+const sortKey = ref<'deadline_asc' | 'deadline_desc' | 'reward_asc' | 'reward_desc'>(
+  'deadline_asc'
+);
 
-const statusClass = (status: BountyStatus) => {
-  if (status === 'OPEN') return 'bg-blue-100 text-blue-700';
-  if (status === 'WORK_SUBMITTED') return 'bg-amber-100 text-amber-700';
-  if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
-  return 'bg-gray-200 text-gray-700';
-};
+const filteredItems = computed(() => {
+  if (activeTab.value === 'all') return bounties.value;
+  if (activeTab.value === 'active')
+    return bounties.value.filter((b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED');
+  return bounties.value.filter((b) => b.status === 'COMPLETED');
+});
+
+const viewItems = computed(() => {
+  const items = [...filteredItems.value];
+  const rewardBig = (b: Bounty) => {
+    try {
+      return BigInt(b.rewardAmountWei || '0');
+    } catch {
+      return 0n;
+    }
+  };
+
+  if (sortKey.value === 'deadline_asc') items.sort((a, b) => a.deadline - b.deadline);
+  if (sortKey.value === 'deadline_desc') items.sort((a, b) => b.deadline - a.deadline);
+  if (sortKey.value === 'reward_asc')
+    items.sort((a, b) => (rewardBig(a) < rewardBig(b) ? -1 : rewardBig(a) > rewardBig(b) ? 1 : 0));
+  if (sortKey.value === 'reward_desc')
+    items.sort((a, b) => (rewardBig(a) > rewardBig(b) ? -1 : rewardBig(a) < rewardBig(b) ? 1 : 0));
+  return items;
+});
+
+const tabs = computed(() => {
+  const all = bounties.value.length;
+  const active = bounties.value.filter(
+    (b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED'
+  ).length;
+  const completed = bounties.value.filter((b) => b.status === 'COMPLETED').length;
+  return [
+    { id: 'all' as const, label: 'All', count: all },
+    { id: 'active' as const, label: 'In progress', count: active },
+    { id: 'completed' as const, label: 'Completed', count: completed },
+  ];
+});
 
 onMounted(() => {
   loadBounties();

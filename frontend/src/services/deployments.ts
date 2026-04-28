@@ -22,7 +22,7 @@ export async function loadDeployment(networkName: string): Promise<DeploymentInf
   if (cache[networkName]) return cache[networkName];
 
   try {
-    const res = await fetch(`/deployments/${networkName}.json`, { cache: 'no-store' });
+    const res = await globalThis.fetch(`/deployments/${networkName}.json`, { cache: 'no-store' });
     if (!res.ok) return null;
     const data = (await res.json()) as DeploymentInfo;
     if (!data?.address) return null;
