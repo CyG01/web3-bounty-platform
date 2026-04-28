@@ -88,6 +88,51 @@ export async function loadBountyDescription(uri: string): Promise<BountyDescript
   }
 }
 
-export async function uploadToIpfs() {
-  throw new Error('Not implemented');
+type UploadPayload = {
+  title: string;
+  markdown: string;
+  images?: string[];
+};
+
+type PinataResponse = {
+  IpfsHash: string;
+};
+
+export async function uploadToIpfs(payload: UploadPayload) {
+  const jwt = import.meta.env.VITE_PINATA_JWT || '';
+  if (!jwt) {
+    throw new Error('VITE_PINATA_JWT is not configured');
+  }
+
+  const body = {
+    pinataMetadata: {
+      name: `bounty-${Date.now()}.json`,
+    },
+    pinataContent: {
+      title: payload.title,
+      markdown: payload.markdown,
+      images: payload.images || [],
+    },
+  };
+
+  const res = await globalThis.fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Pinata upload failed: ${res.status} ${text}`);
+  }
+
+  const json = (await res.json()) as PinataResponse;
+  if (!json.IpfsHash) throw new Error('Pinata did not return CID');
+  return {
+    cid: json.IpfsHash,
+    uri: `ipfs://${json.IpfsHash}`,
+  };
 }

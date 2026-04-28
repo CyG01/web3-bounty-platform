@@ -66,13 +66,32 @@
           <input
             v-model="form.descURI"
             type="text"
-            required
+            :required="!autoUploadDesc"
             class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
             placeholder="ipfs://... or https://github.com/..."
           />
         </div>
         <p class="mt-2 text-xs text-gray-500">
           Provide a link to a document or repository containing the detailed requirements.
+        </p>
+      </div>
+
+      <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <label class="text-sm font-semibold text-gray-800"
+            >Write markdown and auto-upload to IPFS</label
+          >
+          <input v-model="autoUploadDesc" type="checkbox" class="h-4 w-4" />
+        </div>
+        <textarea
+          v-model="form.markdown"
+          rows="8"
+          class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-3 px-4 border"
+          placeholder="## Task details&#10;- scope&#10;- deliverables&#10;- acceptance criteria"
+        />
+        <p class="text-xs text-gray-500">
+          When enabled, publish will upload this markdown to IPFS via Pinata and auto-fill
+          `Description URI`.
         </p>
       </div>
 
@@ -180,13 +199,14 @@
 import { reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
-import { BrowserProvider, Contract, ethers } from 'ethers';
+import { Contract, ethers } from 'ethers';
 import { useWeb3 } from '../composables/useWeb3';
 import { useToast } from '../composables/useToast';
 import ERC20ABI from '../abis/ERC20.json';
+import { uploadToIpfs } from '../services/ipfs';
 
 const userStore = useUserStore();
-const { getBountyContract } = useWeb3();
+const { getBountyContract, getSigner } = useWeb3();
 const router = useRouter();
 const { showToast } = useToast();
 
@@ -196,10 +216,13 @@ const txHash = ref('');
 
 const tokenSymbol = ref('');
 const tokenDecimals = ref<number>(18);
+const minimumRewardWei = ref<bigint>(0n);
+const autoUploadDesc = ref(true);
 
 const form = reactive({
   title: '',
   descURI: '',
+  markdown: '',
   tokenType: 'ETH' as 'ETH' | 'ERC20',
   tokenAddress: '',
   reward: '',
@@ -207,11 +230,9 @@ const form = reactive({
 });
 
 const getTokenContract = async () => {
-  if (!window.ethereum) throw new Error('No wallet provider found');
   if (!form.tokenAddress) throw new Error('Token address is required');
   if (!ethers.isAddress(form.tokenAddress)) throw new Error('Invalid token address');
-  const provider = new BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
+  const signer = await getSigner();
   return new Contract(form.tokenAddress, ERC20ABI, signer);
 };
 
@@ -268,11 +289,20 @@ const submitBounty = async () => {
   isSubmitting.value = true;
 
   try {
-    if (!window.ethereum) {
-      throw new Error('No wallet provider found');
-    }
-
     const contract = await getBountyContract();
+    minimumRewardWei.value = await contract.minimumReward();
+
+    if (autoUploadDesc.value && form.markdown.trim().length > 0) {
+      showToast('Uploading details to IPFS...', 'info');
+      const uploaded = await uploadToIpfs({
+        title: form.title || 'Bounty details',
+        markdown: form.markdown,
+      });
+      form.descURI = uploaded.uri;
+    }
+    if (!form.descURI.trim()) {
+      throw new Error('Description URI is required (or provide markdown for auto upload)');
+    }
 
     const bountyContractAddress = import.meta.env.VITE_BOUNTY_CONTRACT_ADDRESS || '';
     if (!bountyContractAddress) {
@@ -288,11 +318,16 @@ const submitBounty = async () => {
     const parsedReward = isERC20
       ? ethers.parseUnits(form.reward.toString(), tokenDecimals.value)
       : ethers.parseEther(form.reward.toString());
+    if (minimumRewardWei.value > 0n && parsedReward < minimumRewardWei.value) {
+      throw new Error(
+        `Reward is below minimum: ${minimumRewardWei.value.toString()} wei-equivalent`
+      );
+    }
     const deadlineTimestamp = Math.floor(new Date(form.deadline).getTime() / 1000);
 
     // Validate against chain time instead of local device clock
-    const browserProvider = new BrowserProvider(window.ethereum);
-    const latestBlock = await browserProvider.getBlock('latest');
+    const signer = await getSigner();
+    const latestBlock = await signer.provider?.getBlock('latest');
     const chainNow = Number(latestBlock?.timestamp || 0);
 
     if (deadlineTimestamp <= chainNow) {
@@ -331,6 +366,7 @@ const submitBounty = async () => {
 
     form.title = '';
     form.descURI = '';
+    form.markdown = '';
     form.tokenAddress = '';
     form.reward = '';
     form.deadline = '';

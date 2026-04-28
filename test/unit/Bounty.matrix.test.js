@@ -42,6 +42,13 @@ describe('Bounty Unit Tests (Comprehensive Matrix)', function () {
       ).to.be.revertedWith('Reward must be greater than zero');
     });
 
+    it('Should fail if reward is below minimum', async function () {
+      const deadline = (await time.latest()) + 3600;
+      await expect(
+        bounty.connect(publisher).createBounty('Title', 'ipfs://uri', mockTokenAddr, 10n ** 14n, deadline)
+      ).to.be.revertedWith('Reward below minimum');
+    });
+
     it('Should fail if deadline is in the past', async function () {
       const pastDeadline = (await time.latest()) - 100;
       await expect(
@@ -227,6 +234,13 @@ describe('Bounty Unit Tests (Comprehensive Matrix)', function () {
 
     it('Should prevent non-owner from pausing', async function () {
       await expect(bounty.connect(maliciousActor).pause()).to.be.reverted;
+    });
+
+    it('Should allow owner to update minimum reward', async function () {
+      await expect(bounty.connect(owner).setMinimumReward(2n * 10n ** 15n))
+        .to.emit(bounty, 'MinimumRewardUpdated')
+        .withArgs(10n ** 15n, 2n * 10n ** 15n);
+      expect(await bounty.minimumReward()).to.equal(2n * 10n ** 15n);
     });
   });
 });

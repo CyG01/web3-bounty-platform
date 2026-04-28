@@ -26,6 +26,7 @@ contract Bounty is IBounty, ReentrancyGuard, Pausable, Ownable {
     mapping(uint256 => uint256) private _workSubmittedAt;
 
     uint256 public reviewPeriod = 7 days;
+    uint256 public minimumReward = 1e15; // 0.001 token units (18 decimals tokens => 0.001)
 
     modifier bountyExists(uint256 _bountyId) {
         require(_bountyId > 0 && _bountyId <= _bountyCounter, "Bounty does not exist");
@@ -48,6 +49,7 @@ contract Bounty is IBounty, ReentrancyGuard, Pausable, Ownable {
     ) external payable whenNotPaused nonReentrant returns (uint256) {
         require(bytes(_title).length > 0, "Title cannot be empty");
         require(_rewardAmount > 0, "Reward must be greater than zero");
+        require(_rewardAmount >= minimumReward, "Reward below minimum");
         require(_deadline > block.timestamp, "Deadline must be in the future");
 
         if (_tokenAddress == address(0)) {
@@ -59,6 +61,7 @@ contract Bounty is IBounty, ReentrancyGuard, Pausable, Ownable {
             uint256 balanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
             uint256 actualAmount = balanceAfter - balanceBefore;
             require(actualAmount > 0, "No tokens received");
+            require(actualAmount >= minimumReward, "Received reward below minimum");
             _rewardAmount = actualAmount;
         }
 
@@ -205,6 +208,13 @@ contract Bounty is IBounty, ReentrancyGuard, Pausable, Ownable {
         uint256 old = reviewPeriod;
         reviewPeriod = newPeriod;
         emit ReviewPeriodUpdated(old, newPeriod);
+    }
+
+    function setMinimumReward(uint256 newMinimum) external onlyOwner {
+        require(newMinimum > 0, "Minimum reward must be > 0");
+        uint256 old = minimumReward;
+        minimumReward = newMinimum;
+        emit MinimumRewardUpdated(old, newMinimum);
     }
 
     function getBountiesPaginated(

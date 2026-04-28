@@ -56,10 +56,10 @@
     </div>
 
     <div
-      v-if="!loading && bounties.length === 0"
+      v-if="!loading && viewItems.length === 0"
       class="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500"
     >
-      No bounty found on-chain yet. Create the first one!
+      No visible bounty found. Try changing filters or create a new one.
     </div>
 
     <div v-if="loading" class="grid grid-cols-1 gap-4">
@@ -93,7 +93,16 @@
         :key="item.id"
         :bounty="item"
         :reward-text="rewardDisplay(item)"
-      />
+      >
+        <template #left>
+          <button
+            class="text-xs text-gray-500 hover:text-red-600 font-semibold"
+            @click="report(item.id)"
+          >
+            Report spam
+          </button>
+        </template>
+      </BountyCard>
     </div>
   </section>
 </template>
@@ -105,8 +114,11 @@ import type { Bounty } from '../types';
 import { JsonRpcProvider } from 'ethers';
 import { formatTokenAmount, getTokenMeta, shortenHex, ZERO_ADDRESS } from '../utils/token';
 import BountyCard from '../components/features/BountyCard.vue';
+import { getHiddenBountyIds, reportBounty, reportHideThreshold } from '../services/spamGuard';
+import { useToast } from '../composables/useToast';
 
 const { bounties, loading, error, loadBounties } = useBounty();
+const { showToast } = useToast();
 const zeroAddress = ZERO_ADDRESS;
 
 const rpcUrl = import.meta.env.VITE_RPC_URL || 'http://127.0.0.1:8545';
@@ -146,12 +158,14 @@ const activeTab = ref<TabId>('all');
 const sortKey = ref<'deadline_asc' | 'deadline_desc' | 'reward_asc' | 'reward_desc'>(
   'deadline_asc'
 );
+const hiddenSet = ref<Set<number>>(getHiddenBountyIds());
 
 const filteredItems = computed(() => {
-  if (activeTab.value === 'all') return bounties.value;
+  const visible = bounties.value.filter((b) => !hiddenSet.value.has(b.id));
+  if (activeTab.value === 'all') return visible;
   if (activeTab.value === 'active')
-    return bounties.value.filter((b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED');
-  return bounties.value.filter((b) => b.status === 'COMPLETED');
+    return visible.filter((b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED');
+  return visible.filter((b) => b.status === 'COMPLETED');
 });
 
 const viewItems = computed(() => {
@@ -174,17 +188,27 @@ const viewItems = computed(() => {
 });
 
 const tabs = computed(() => {
-  const all = bounties.value.length;
-  const active = bounties.value.filter(
-    (b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED'
-  ).length;
-  const completed = bounties.value.filter((b) => b.status === 'COMPLETED').length;
+  const visible = bounties.value.filter((b) => !hiddenSet.value.has(b.id));
+  const all = visible.length;
+  const active = visible.filter((b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED').length;
+  const completed = visible.filter((b) => b.status === 'COMPLETED').length;
   return [
     { id: 'all' as const, label: 'All', count: all },
     { id: 'active' as const, label: 'In progress', count: active },
     { id: 'completed' as const, label: 'Completed', count: completed },
   ];
 });
+
+const report = (bountyId: number) => {
+  const next = reportBounty(bountyId);
+  hiddenSet.value = getHiddenBountyIds();
+  const threshold = reportHideThreshold();
+  if (next >= threshold) {
+    showToast(`Bounty #${bountyId} hidden after reports.`, 'info');
+  } else {
+    showToast(`Reported bounty #${bountyId} (${next}/${threshold}).`, 'info');
+  }
+};
 
 onMounted(() => {
   loadBounties();

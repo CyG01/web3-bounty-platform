@@ -108,6 +108,7 @@ import BountyCard from '../components/features/BountyCard.vue';
 import { useBounty } from '../composables/useBounty';
 import type { Bounty } from '../types';
 import { formatTokenAmount, getTokenMeta, shortenHex, ZERO_ADDRESS } from '../utils/token';
+import { getHiddenBountyIds } from '../services/spamGuard';
 
 const { bounties, loading, loadBounties } = useBounty();
 const zeroAddress = ZERO_ADDRESS;
@@ -144,11 +145,13 @@ const rewardDisplay = (item: Bounty) => {
 };
 
 const totalCount = computed(() => bounties.value.length);
-const openCount = computed(() => bounties.value.filter((b) => b.status === 'OPEN').length);
-const latestOpen = computed(() => bounties.value.filter((b) => b.status === 'OPEN').slice(0, 3));
+const hiddenSet = computed(() => getHiddenBountyIds());
+const visible = computed(() => bounties.value.filter((b) => !hiddenSet.value.has(b.id)));
+const openCount = computed(() => visible.value.filter((b) => b.status === 'OPEN').length);
+const latestOpen = computed(() => visible.value.filter((b) => b.status === 'OPEN').slice(0, 3));
 
 const tvlEth = computed(() => {
-  const sumWei = bounties.value
+  const sumWei = visible.value
     .filter(
       (b) =>
         b.tokenAddress === zeroAddress && (b.status === 'OPEN' || b.status === 'WORK_SUBMITTED')

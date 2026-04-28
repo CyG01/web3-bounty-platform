@@ -53,9 +53,11 @@
         >
           {{ descError }}
         </div>
-        <div v-else-if="desc?.markdown" class="text-sm text-gray-800 whitespace-pre-wrap leading-6">
-          {{ desc.markdown }}
-        </div>
+        <div
+          v-else-if="descHtml"
+          class="prose prose-sm max-w-none text-gray-800"
+          v-html="descHtml"
+        />
         <div v-else class="text-sm text-gray-500">
           No parsed description available. Open the URI above to view details.
         </div>
@@ -153,6 +155,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { JsonRpcProvider } from 'ethers';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { useBounty } from '../composables/useBounty';
 import { useWeb3 } from '../composables/useWeb3';
 import { useToast } from '../composables/useToast';
@@ -186,6 +190,14 @@ const proofURI = ref('');
 const desc = ref<BountyDescription | null>(null);
 const descLoading = ref(false);
 const descError = ref('');
+const descHtml = computed(() => {
+  if (!desc.value?.markdown) return '';
+  const rawHtml = marked.parse(desc.value.markdown, { breaks: true, gfm: true });
+  return DOMPurify.sanitize(rawHtml as string, {
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+  });
+});
 
 const formatDate = (unix: number) => new Date(unix * 1000).toLocaleString();
 

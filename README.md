@@ -6,6 +6,7 @@
 
 - 智能合约层：Hardhat + Solidity + OpenZeppelin
 - 前端 DApp：Vue 3 + Vite + TypeScript + Tailwind + Pinia + Vue Router
+- 索引层（可选）：The Graph Subgraph（`subgraph/`）
 - 仓库形态：Monorepo（合约与前端分离）
 
 ## 目录说明
@@ -16,6 +17,7 @@ bounty-platform/
 ├── scripts/                  # 部署与运维脚本
 ├── test/                     # 合约测试（unit/integration）
 ├── frontend/                 # Vue 3 前端 DApp
+├── subgraph/                 # The Graph 索引定义（schema/mapping）
 ├── .github/workflows/        # CI/CD
 ├── .husky/                   # Git hooks
 ├── hardhat.config.js         # Hardhat 配置
@@ -115,6 +117,20 @@ VITE_DEPLOY_BLOCK=0
 npm i
 npm run dev
 ```
+
+### 7. （可选）启用索引器与 IPFS 自动上传
+
+在 `frontend/.env.local` 追加：
+
+```bash
+VITE_INDEXER_GRAPHQL_URL=https://api.studio.thegraph.com/query/<id>/<name>/latest
+VITE_PINATA_JWT=你的 Pinata JWT
+VITE_WALLETCONNECT_PROJECT_ID=你的 WalletConnect Project ID
+```
+
+- 配置 `VITE_INDEXER_GRAPHQL_URL` 后，前端优先走 GraphQL 查询（失败自动 fallback 到链上读取）。
+- Create 页面支持“Markdown 自动上传 IPFS”（Pinata）。
+- 钱包连接支持 Browser Wallet + WalletConnect。
 
 ## 部署到 Sepolia（公网测试网）
 

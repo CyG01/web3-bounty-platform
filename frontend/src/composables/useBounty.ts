@@ -3,6 +3,7 @@ import { Contract, JsonRpcProvider, formatEther } from 'ethers';
 import BountyABI from '../abis/Bounty.json';
 import type { Bounty, BountyStatus } from '../types';
 import { loadDeployment } from '../services/deployments';
+import { fetchBountiesFromIndexer, fetchBountyFromIndexer, hasIndexer } from '../services/indexer';
 
 const BOUNTY_CONTRACT_ADDRESS = import.meta.env.VITE_BOUNTY_CONTRACT_ADDRESS || '';
 const RPC_URL = import.meta.env.VITE_RPC_URL || 'http://127.0.0.1:8545';
@@ -35,6 +36,15 @@ interface RawBounty {
   status: number;
   successfulHunter: string;
 }
+
+export type UserNotification = {
+  id: string;
+  bountyId: number;
+  blockNumber: number;
+  txHash: string;
+  kind: 'submission_for_my_bounty' | 'work_rejected' | 'bounty_paid';
+  message: string;
+};
 
 export function useBounty() {
   const bounties = ref<Bounty[]>([]);
@@ -142,6 +152,11 @@ export function useBounty() {
     error.value = '';
 
     try {
+      if (hasIndexer()) {
+        bounties.value = await fetchBountiesFromIndexer(500);
+        return;
+      }
+
       const contract = await getReadContract();
       const count: bigint = await contract.getBountyCount();
       const tasks: Bounty[] = [];
@@ -205,6 +220,11 @@ export function useBounty() {
   };
 
   const getBountyById = async (id: number) => {
+    if (hasIndexer()) {
+      const indexed = await fetchBountyFromIndexer(id);
+      if (indexed) return indexed;
+    }
+
     const contract = await getReadContract();
     const item: RawBounty = await contract.getBounty(id);
     const mapped: Bounty = {
@@ -259,6 +279,89 @@ export function useBounty() {
     return ids;
   };
 
+  const getUserNotifications = async (userAddress: string): Promise<UserNotification[]> => {
+    if (!userAddress) return [];
+    const contract = await getReadContract();
+    const user = userAddress.toLowerCase();
+
+    const [submittedLogs, paidLogs, rejectedLogs] = await Promise.all([
+      queryFilterPaged(contract.filters.WorkSubmitted()),
+      queryFilterPaged(contract.filters.BountyPaid(null, userAddress)),
+      queryFilterPaged(contract.filters.WorkRejected(null, null, userAddress)),
+    ]);
+
+    const notes: UserNotification[] = [];
+    const bountyCache = new Map<number, Bounty>();
+
+    const getBountyCached = async (bountyId: number) => {
+      const cached = bountyCache.get(bountyId);
+      if (cached) return cached;
+      const loaded = await getBountyById(bountyId);
+      bountyCache.set(bountyId, loaded);
+      return loaded;
+    };
+
+    for (const log of submittedLogs as Array<{
+      args?: { bountyId?: bigint; hunter?: string };
+      blockNumber?: number;
+      transactionHash?: string;
+      index?: number;
+    }>) {
+      const bountyId = log.args?.bountyId ? Number(log.args.bountyId) : 0;
+      const hunter = (log.args?.hunter || '').toLowerCase();
+      if (!bountyId) continue;
+      const b = await getBountyCached(bountyId);
+      if (b.publisher.toLowerCase() !== user || hunter === user) continue;
+      notes.push({
+        id: `submitted_${log.transactionHash || '0x'}_${log.index ?? 0}`,
+        bountyId,
+        blockNumber: Number(log.blockNumber || 0),
+        txHash: log.transactionHash || '',
+        kind: 'submission_for_my_bounty',
+        message: `Bounty #${bountyId} has a new submission.`,
+      });
+    }
+
+    for (const log of paidLogs as Array<{
+      args?: { bountyId?: bigint };
+      blockNumber?: number;
+      transactionHash?: string;
+      index?: number;
+    }>) {
+      const bountyId = log.args?.bountyId ? Number(log.args.bountyId) : 0;
+      if (!bountyId) continue;
+      notes.push({
+        id: `paid_${log.transactionHash || '0x'}_${log.index ?? 0}`,
+        bountyId,
+        blockNumber: Number(log.blockNumber || 0),
+        txHash: log.transactionHash || '',
+        kind: 'bounty_paid',
+        message: `You were paid for bounty #${bountyId}.`,
+      });
+    }
+
+    for (const log of rejectedLogs as Array<{
+      args?: { bountyId?: bigint };
+      blockNumber?: number;
+      transactionHash?: string;
+      index?: number;
+    }>) {
+      const bountyId = log.args?.bountyId ? Number(log.args.bountyId) : 0;
+      if (!bountyId) continue;
+      notes.push({
+        id: `rejected_${log.transactionHash || '0x'}_${log.index ?? 0}`,
+        bountyId,
+        blockNumber: Number(log.blockNumber || 0),
+        txHash: log.transactionHash || '',
+        kind: 'work_rejected',
+        message: `Your submission was rejected for bounty #${bountyId}.`,
+      });
+    }
+
+    notes.sort((a, b) => b.blockNumber - a.blockNumber);
+    return notes;
+  };
+
   return {
     bounties,
     loading,
@@ -268,5 +371,6 @@ export function useBounty() {
     getBountyHunters,
     getSubmission,
     getSubmittedBountyIdsByHunter,
+    getUserNotifications,
   };
 }

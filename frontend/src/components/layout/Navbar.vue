@@ -36,33 +36,30 @@
         </div>
 
         <div class="flex items-center">
-          <div v-if="error" class="hidden md:block text-red-500 text-sm mr-4 font-medium animate-pulse">
+          <div
+            v-if="error"
+            class="hidden md:block text-red-500 text-sm mr-4 font-medium animate-pulse"
+          >
             {{ error }}
           </div>
 
-          <button
-            v-if="!userStore.isConnected"
-            class="inline-flex items-center px-5 py-2 border border-transparent text-sm font-semibold rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:scale-105"
-            @click="connectWallet"
-          >
-            <svg
-              class="w-4 h-4 mr-2 -ml-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
+          <div v-if="!userStore.isConnected" class="flex items-center gap-2">
+            <button
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+              @click="connectWallet('injected')"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-              />
-            </svg>
-            Connect Wallet
-          </button>
+              Browser Wallet
+            </button>
+            <button
+              class="inline-flex items-center px-4 py-2 border border-indigo-200 text-sm font-semibold rounded-full shadow-sm text-indigo-700 bg-white hover:bg-indigo-50"
+              @click="connectWallet('walletconnect')"
+            >
+              WalletConnect
+            </button>
+          </div>
 
           <div v-else class="flex items-center space-x-3">
+            <NotificationBell />
             <div class="flex flex-col items-end">
               <span
                 class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200"
@@ -78,7 +75,7 @@
             <button
               title="Disconnect"
               class="p-2 text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 rounded-full transition-colors"
-              @click="userStore.disconnect()"
+              @click="disconnectWallet()"
             >
               <svg
                 class="w-5 h-5"
@@ -106,7 +103,8 @@
 import { useUserStore } from '../../stores/userStore';
 import { useWeb3 } from '../../composables/useWeb3';
 import { shortenAddress } from '../../utils/format';
+import NotificationBell from '../features/NotificationBell.vue';
 
 const userStore = useUserStore();
-const { connectWallet, error } = useWeb3();
+const { connectWallet, disconnectWallet, error } = useWeb3();
 </script>

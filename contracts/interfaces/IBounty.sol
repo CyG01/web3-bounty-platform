@@ -38,6 +38,7 @@ interface IBounty {
     event BountyPaid(uint256 indexed bountyId, address indexed hunter, uint256 amount);
     event BountyCancelled(uint256 indexed bountyId, address indexed publisher, uint256 refundAmount);
     event ReviewPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+    event MinimumRewardUpdated(uint256 oldMinimum, uint256 newMinimum);
 
     function createBounty(
         string memory _title,
@@ -56,6 +57,10 @@ interface IBounty {
     function rejectWork(uint256 _bountyId, address _hunter) external;
 
     function hunterClaim(uint256 _bountyId) external;
+
+    function setMinimumReward(uint256 newMinimum) external;
+
+    function minimumReward() external view returns (uint256);
 
     function getBountiesPaginated(
         uint256 cursor,
