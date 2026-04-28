@@ -1,0 +1,38 @@
+specVersion: 0.0.7
+description: Web3Bounty indexer
+repository: https://example.com/web3bounty
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  - kind: ethereum/contract
+    name: Bounty
+    network: sepolia
+    source:
+      # Set by deployment script or manually
+      address: "0x0000000000000000000000000000000000000000"
+      abi: Bounty
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Bounty
+        - Submission
+      abis:
+        - name: Bounty
+          file: ../artifacts/contracts/core/Bounty.sol/Bounty.json
+      eventHandlers:
+        - event: BountyCreated(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleBountyCreated
+        - event: WorkSubmitted(indexed uint256,indexed address,string)
+          handler: handleWorkSubmitted
+        - event: WorkRejected(indexed uint256,indexed address,indexed address)
+          handler: handleWorkRejected
+        - event: BountyPaid(indexed uint256,indexed address,uint256)
+          handler: handleBountyPaid
+        - event: BountyCancelled(indexed uint256,indexed address,uint256)
+          handler: handleBountyCancelled
+      file: ./src/mapping.ts
+

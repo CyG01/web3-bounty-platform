@@ -1,0 +1,27 @@
+type Bounty @entity {
+  id: ID!
+  bountyId: String!
+  publisher: Bytes!
+  title: String!
+  descriptionURI: String!
+  rewardAmount: BigInt!
+  tokenAddress: Bytes!
+  deadline: BigInt!
+  status: String!
+  successfulHunter: Bytes!
+  createdAt: BigInt!
+  updatedAt: BigInt!
+  submissions: [Submission!]! @derivedFrom(field: "bounty")
+}
+
+type Submission @entity {
+  id: ID!
+  bounty: Bounty!
+  bountyId: String!
+  hunter: Bytes!
+  proofURI: String!
+  submittedAt: BigInt!
+  rejectedAt: BigInt
+  isRejected: Boolean!
+}
+
