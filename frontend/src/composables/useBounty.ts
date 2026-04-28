@@ -3,7 +3,11 @@ import { Contract, JsonRpcProvider, formatEther } from 'ethers';
 import BountyABI from '../abis/Bounty.json';
 import type { Bounty, BountyStatus } from '../types';
 import { loadDeployment } from '../services/deployments';
-import { fetchBountiesFromIndexer, fetchBountyFromIndexer, hasIndexer } from '../services/indexer';
+import {
+  fetchBountiesPageFromIndexer,
+  fetchBountyFromIndexer,
+  hasIndexer,
+} from '../services/indexer';
 
 const BOUNTY_CONTRACT_ADDRESS = import.meta.env.VITE_BOUNTY_CONTRACT_ADDRESS || '';
 const RPC_URL = import.meta.env.VITE_RPC_URL || 'http://127.0.0.1:8545';
@@ -44,12 +48,21 @@ export type UserNotification = {
   txHash: string;
   kind: 'submission_for_my_bounty' | 'work_rejected' | 'bounty_paid';
   message: string;
+  amountWei?: string;
 };
 
 export function useBounty() {
   const bounties = ref<Bounty[]>([]);
   const loading = ref(false);
   const error = ref('');
+  const hasMore = ref(true);
+
+  const pageSize = Number(import.meta.env.VITE_BOUNTIES_PAGE_SIZE || 25);
+  const first =
+    Number.isFinite(pageSize) && pageSize > 0 ? Math.min(200, Math.floor(pageSize)) : 25;
+
+  const indexerSkip = ref(0);
+  const contractCursor = ref<number | null>(null);
 
   const provider = new JsonRpcProvider(RPC_URL);
 
@@ -147,76 +160,105 @@ export function useBounty() {
     return logs;
   };
 
-  const loadBounties = async () => {
+  const mapRawBounty = (item: RawBounty): Bounty => {
+    return {
+      id: Number(item.id),
+      publisher: item.publisher,
+      title: item.title,
+      descriptionURI: item.descriptionURI,
+      rewardAmountWei: item.rewardAmount.toString(),
+      rewardAmountEth: formatEther(item.rewardAmount),
+      tokenAddress: item.tokenAddress,
+      deadline: Number(item.deadline),
+      status: statusMap[item.status] ?? 'OPEN',
+      successfulHunter: item.successfulHunter,
+    };
+  };
+
+  const resetPaging = () => {
+    indexerSkip.value = 0;
+    contractCursor.value = null;
+    hasMore.value = true;
+  };
+
+  const loadFirstPage = async () => {
+    bounties.value = [];
+    resetPaging();
+    await loadNextPage();
+  };
+
+  const loadNextPage = async () => {
+    if (loading.value) return;
+    if (!hasMore.value) return;
+
     loading.value = true;
     error.value = '';
 
     try {
       if (hasIndexer()) {
-        bounties.value = await fetchBountiesFromIndexer(500);
+        const page = await fetchBountiesPageFromIndexer({ first, skip: indexerSkip.value });
+        bounties.value = [...bounties.value, ...page];
+        indexerSkip.value += page.length;
+        hasMore.value = page.length === first;
         return;
       }
 
       const contract = await getReadContract();
       const count: bigint = await contract.getBountyCount();
-      const tasks: Bounty[] = [];
       const total = Number(count);
+      if (!Number.isFinite(total) || total <= 0) {
+        hasMore.value = false;
+        return;
+      }
 
-      // Prefer contract-side pagination to avoid RPC N+1 storms
       const maybePaged = contract as unknown as {
         getBountiesPaginated?: (cursor: number, size: number) => Promise<[RawBounty[], bigint]>;
       };
 
-      if (typeof maybePaged.getBountiesPaginated === 'function' && total > 0) {
-        let cursor = total;
-        const size = 25;
-        while (cursor > 0) {
-          const res = await maybePaged.getBountiesPaginated(cursor, size);
-          const items: RawBounty[] = res?.[0] ?? [];
-          const next: bigint = res?.[1] ?? 0n;
-
-          for (const item of items) {
-            tasks.push({
-              id: Number(item.id),
-              publisher: item.publisher,
-              title: item.title,
-              descriptionURI: item.descriptionURI,
-              rewardAmountWei: item.rewardAmount.toString(),
-              rewardAmountEth: formatEther(item.rewardAmount),
-              tokenAddress: item.tokenAddress,
-              deadline: Number(item.deadline),
-              status: statusMap[item.status] ?? 'OPEN',
-              successfulHunter: item.successfulHunter,
-            });
-          }
-
-          cursor = Number(next);
+      if (typeof maybePaged.getBountiesPaginated === 'function') {
+        const cursor = contractCursor.value ?? total;
+        if (cursor <= 0) {
+          hasMore.value = false;
+          return;
         }
-      } else {
-        // Fallback for older deployments
-        for (let id = total; id >= 1; id--) {
-          const item: RawBounty = await contract.getBounty(id);
-          tasks.push({
-            id: Number(item.id),
-            publisher: item.publisher,
-            title: item.title,
-            descriptionURI: item.descriptionURI,
-            rewardAmountWei: item.rewardAmount.toString(),
-            rewardAmountEth: formatEther(item.rewardAmount),
-            tokenAddress: item.tokenAddress,
-            deadline: Number(item.deadline),
-            status: statusMap[item.status] ?? 'OPEN',
-            successfulHunter: item.successfulHunter,
-          });
-        }
+
+        const res = await maybePaged.getBountiesPaginated(cursor, first);
+        const items: RawBounty[] = res?.[0] ?? [];
+        const next: bigint = res?.[1] ?? 0n;
+        bounties.value = [...bounties.value, ...items.map(mapRawBounty)];
+        const nextCursor = Number(next);
+        contractCursor.value = nextCursor;
+        hasMore.value = items.length === first && nextCursor > 0;
+        return;
       }
 
-      bounties.value = tasks;
+      // Fallback: page by ID-range to avoid fetching everything at once
+      const cursor = contractCursor.value ?? total;
+      if (cursor <= 0) {
+        hasMore.value = false;
+        return;
+      }
+
+      const start = Math.max(1, cursor - first + 1);
+      const ids: number[] = [];
+      for (let id = cursor; id >= start; id--) ids.push(id);
+
+      const rawItems = await Promise.all(
+        ids.map((id) => contract.getBounty(id) as Promise<RawBounty>)
+      );
+      bounties.value = [...bounties.value, ...rawItems.map(mapRawBounty)];
+      contractCursor.value = start - 1;
+      hasMore.value = start > 1;
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to load bounties';
     } finally {
       loading.value = false;
     }
+  };
+
+  // Compatibility wrapper: previously loaded all; now load the first page
+  const loadBounties = async () => {
+    await loadFirstPage();
   };
 
   const getBountyById = async (id: number) => {
@@ -323,7 +365,7 @@ export function useBounty() {
     }
 
     for (const log of paidLogs as Array<{
-      args?: { bountyId?: bigint };
+      args?: { bountyId?: bigint; amount?: bigint };
       blockNumber?: number;
       transactionHash?: string;
       index?: number;
@@ -337,6 +379,7 @@ export function useBounty() {
         txHash: log.transactionHash || '',
         kind: 'bounty_paid',
         message: `You were paid for bounty #${bountyId}.`,
+        amountWei: log.args?.amount ? log.args.amount.toString() : '0',
       });
     }
 
@@ -367,6 +410,9 @@ export function useBounty() {
     loading,
     error,
     loadBounties,
+    loadFirstPage,
+    loadNextPage,
+    hasMore,
     getBountyById,
     getBountyHunters,
     getSubmission,

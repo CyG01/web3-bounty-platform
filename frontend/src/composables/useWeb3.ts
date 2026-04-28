@@ -141,6 +141,11 @@ export function useWeb3() {
     return provider.value.getSigner();
   };
 
+  const getProvider = () => {
+    if (!provider.value) throw new Error('No provider available');
+    return provider.value;
+  };
+
   const switchToSupportedChain = async () => {
     if (!provider.value) return;
     const targetChainHex = import.meta.env.VITE_DEFAULT_CHAIN_HEX || '0xaa36a7'; // sepolia
@@ -163,6 +168,7 @@ export function useWeb3() {
     connectWallet,
     disconnectWallet,
     switchToSupportedChain,
+    getProvider,
     getSigner,
     getBountyContract,
     error,

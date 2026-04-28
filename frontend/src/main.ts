@@ -1,13 +1,14 @@
-import { createApp } from 'vue';
+import { createApp, watch } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
-import { watch } from 'vue';
+import { createAppI18n } from './i18n';
+import type { SupportedLocale } from './i18n';
+import { useUiStore } from './stores/uiStore';
+import { useAuthStore } from './stores/authStore';
 import './styles.css';
 import { useToast } from './composables/useToast';
 import { humanizeWeb3Error } from './utils/errors';
-import { createAppI18n } from './i18n';
-import { useUiStore } from './stores/uiStore';
 
 const app = createApp(App);
 
@@ -18,12 +19,15 @@ app.use(router);
 const uiStore = useUiStore(pinia);
 uiStore.init();
 
+const authStore = useAuthStore(pinia);
+authStore.init();
+
 const i18n = createAppI18n(uiStore.locale);
 app.use(i18n);
 
 watch(
   () => uiStore.locale,
-  (l) => {
+  (l: SupportedLocale) => {
     i18n.global.locale.value = l;
   }
 );

@@ -16,10 +16,13 @@ export const useUiStore = defineStore('ui', () => {
   const locale = ref<SupportedLocale>('zh-CN');
 
   const init = () => {
-    const savedTheme = localStorage.getItem(STORAGE_THEME_KEY) as ThemeName | null;
-    const savedLocale = localStorage.getItem(STORAGE_LOCALE_KEY) as SupportedLocale | null;
+    const savedTheme = globalThis.localStorage?.getItem(STORAGE_THEME_KEY) as ThemeName | null;
+    const savedLocale = globalThis.localStorage?.getItem(
+      STORAGE_LOCALE_KEY
+    ) as SupportedLocale | null;
 
-    if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'neon') theme.value = savedTheme;
+    if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'neon')
+      theme.value = savedTheme;
     if (savedLocale === 'zh-CN' || savedLocale === 'en') locale.value = savedLocale;
 
     applyTheme(theme.value);
@@ -40,12 +43,12 @@ export const useUiStore = defineStore('ui', () => {
   const isDark = computed(() => theme.value === 'dark' || theme.value === 'neon');
 
   watch(theme, (t) => {
-    localStorage.setItem(STORAGE_THEME_KEY, t);
+    globalThis.localStorage?.setItem(STORAGE_THEME_KEY, t);
     applyTheme(t);
   });
 
   watch(locale, (l) => {
-    localStorage.setItem(STORAGE_LOCALE_KEY, l);
+    globalThis.localStorage?.setItem(STORAGE_LOCALE_KEY, l);
   });
 
   return {

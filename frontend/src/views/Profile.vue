@@ -14,11 +14,87 @@
     </div>
 
     <div v-else class="space-y-8">
-      <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <div
+        class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border"
+        :style="panelStyle"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3 min-w-0">
+            <AddressBadge :address="userStore.address" />
+            <div class="min-w-0">
+              <h2 class="text-lg font-semibold" :style="titleStyle">{{ t('profile.settings') }}</h2>
+              <p class="text-xs" :style="mutedStyle">
+                {{ authStore.isAuthenticated ? t('profile.signedIn') : t('profile.signInHint') }}
+              </p>
+            </div>
+          </div>
+          <button
+            class="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:bg-gray-400"
+            :style="primaryBtnStyle"
+            @click="saveProfile"
+          >
+            {{ t('profile.save') }}
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold" :style="mutedStyle">{{
+              t('profile.nickname')
+            }}</label>
+            <input
+              v-model="profileStore.profile.nickname"
+              type="text"
+              class="w-full px-4 py-3 rounded-lg border text-sm"
+              :style="inputStyle"
+              :placeholder="t('profile.nicknamePlaceholder')"
+            />
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-semibold" :style="mutedStyle">{{
+              t('profile.avatar')
+            }}</label>
+            <input
+              v-model="profileStore.profile.avatarUrl"
+              type="text"
+              class="w-full px-4 py-3 rounded-lg border text-sm"
+              :style="inputStyle"
+              :placeholder="t('profile.avatarPlaceholder')"
+            />
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-semibold" :style="mutedStyle">{{
+              t('profile.email')
+            }}</label>
+            <input
+              v-model="profileStore.profile.email"
+              type="email"
+              class="w-full px-4 py-3 rounded-lg border text-sm"
+              :style="inputStyle"
+              :placeholder="t('profile.emailPlaceholder')"
+            />
+          </div>
+        </div>
+
+        <div class="rounded-lg px-4 py-3 border" :style="metricStyle">
+          <p class="text-xs font-semibold" :style="mutedStyle">{{ t('profile.totalEarnings') }}</p>
+          <p class="text-base font-semibold" :style="titleStyle">{{ totalEarningsEth }} ETH</p>
+        </div>
+      </div>
+
+      <div
+        v-if="error"
+        class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+      >
         {{ error }}
       </div>
 
-      <div class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border" :style="panelStyle">
+      <div
+        class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border"
+        :style="panelStyle"
+      >
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold" :style="titleStyle">{{ t('profile.published') }}</h2>
           <button
@@ -33,9 +109,13 @@
 
         <div v-if="loading" class="text-sm" :style="mutedStyle">{{ t('profile.loading') }}</div>
 
-        <div v-else-if="published.length === 0" class="text-sm" :style="mutedStyle">
-          {{ t('profile.nonePublished') }}
-        </div>
+        <EmptyState
+          v-else-if="published.length === 0"
+          :title="t('profile.nonePublished')"
+          :subtitle="t('profile.nonePublishedHint')"
+          icon-text="+"
+          variant="sparkles"
+        />
 
         <div v-else class="grid grid-cols-1 gap-4">
           <article
@@ -46,9 +126,12 @@
           >
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-base font-semibold" :style="titleStyle">#{{ item.id }} - {{ item.title }}</h3>
-                <p class="text-xs break-all" :style="mutedStyle">
-                  {{ t('common.publisher') }}: {{ item.publisher }}
+                <h3 class="text-base font-semibold" :style="titleStyle">
+                  #{{ item.id }} - {{ item.title }}
+                </h3>
+                <p class="text-xs flex items-center gap-2 min-w-0" :style="mutedStyle">
+                  <span>{{ t('common.publisher') }}:</span>
+                  <AddressBadge :address="item.publisher" />
                 </p>
               </div>
               <StatusBadge :status="item.status" />
@@ -72,18 +155,28 @@
         </div>
       </div>
 
-      <div class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border" :style="panelStyle">
+      <div
+        class="rounded-xl border p-5 shadow-sm space-y-4 ui-glow ui-shimmer-border"
+        :style="panelStyle"
+      >
         <h2 class="text-lg font-semibold" :style="titleStyle">{{ t('profile.participated') }}</h2>
 
-        <div v-if="indexing" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+        <div
+          v-if="indexing"
+          class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700"
+        >
           {{ t('profile.indexing') }} {{ indexingText }}
         </div>
 
         <div v-if="loading" class="text-sm" :style="mutedStyle">{{ t('profile.loading') }}</div>
 
-        <div v-else-if="participated.length === 0" class="text-sm" :style="mutedStyle">
-          {{ t('profile.noneSubmissions') }}
-        </div>
+        <EmptyState
+          v-else-if="participated.length === 0"
+          :title="t('profile.noneSubmissions')"
+          :subtitle="t('profile.noneSubmissionsHint')"
+          icon-text="~"
+          variant="search"
+        />
 
         <div v-else class="grid grid-cols-1 gap-4">
           <article
@@ -94,9 +187,12 @@
           >
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-base font-semibold" :style="titleStyle">#{{ item.id }} - {{ item.title }}</h3>
-                <p class="text-xs break-all" :style="mutedStyle">
-                  {{ t('common.publisher') }}: {{ item.publisher }}
+                <h3 class="text-base font-semibold" :style="titleStyle">
+                  #{{ item.id }} - {{ item.title }}
+                </h3>
+                <p class="text-xs flex items-center gap-2 min-w-0" :style="mutedStyle">
+                  <span>{{ t('common.publisher') }}:</span>
+                  <AddressBadge :address="item.publisher" />
                 </p>
               </div>
               <StatusBadge :status="item.status" />
@@ -140,6 +236,11 @@ import { useBounty } from '../composables/useBounty';
 import type { Bounty } from '../types';
 import StatusBadge from '../components/features/StatusBadge.vue';
 import { useI18n } from 'vue-i18n';
+import { useProfileStore } from '../stores/profileStore';
+import { useAuthStore } from '../stores/authStore';
+import AddressBadge from '../components/common/AddressBadge.vue';
+import EmptyState from '../components/common/EmptyState.vue';
+import { formatDisplayAmount } from '../utils/display';
 
 const { t } = useI18n();
 
@@ -170,8 +271,29 @@ const secondaryBtnStyle = computed(() => ({
   color: `rgb(var(--text))`,
 }));
 
+const inputStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.65)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--text))`,
+}));
+
+const metricStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface-2), 0.55)`,
+  borderColor: `rgb(var(--border))`,
+}));
+
 const userStore = useUserStore();
-const { bounties, loadBounties, getSubmittedBountyIdsByHunter, getBountyById } = useBounty();
+const authStore = useAuthStore();
+const {
+  bounties,
+  loadFirstPage,
+  loadNextPage,
+  hasMore,
+  getSubmittedBountyIdsByHunter,
+  getBountyById,
+  getUserNotifications,
+} = useBounty();
+const profileStore = useProfileStore();
 
 const loading = ref(false);
 const error = ref('');
@@ -180,6 +302,15 @@ const participated = ref<Bounty[]>([]);
 
 const indexing = ref(false);
 const indexingText = ref('');
+
+const totalEarningsWei = ref<bigint>(0n);
+const totalEarningsEth = computed(() => {
+  return formatDisplayAmount(totalEarningsWei.value, { decimals: 18, maxFraction: 4 });
+});
+
+const saveProfile = () => {
+  profileStore.save();
+};
 
 const published = computed(() => {
   const me = userStore.address?.toLowerCase();
@@ -195,7 +326,28 @@ const load = async () => {
   indexingText.value = '';
 
   try {
-    await loadBounties();
+    profileStore.load();
+    await loadFirstPage();
+    let guard = 0;
+    while (hasMore.value && guard < 50) {
+      guard += 1;
+      await loadNextPage();
+    }
+
+    try {
+      const notes = await getUserNotifications(userStore.address);
+      totalEarningsWei.value = notes
+        .filter((n) => n.kind === 'bounty_paid')
+        .reduce((acc, n) => {
+          try {
+            return acc + BigInt((n as unknown as { amountWei?: string }).amountWei || '0');
+          } catch {
+            return acc;
+          }
+        }, 0n);
+    } catch {
+      totalEarningsWei.value = 0n;
+    }
 
     const ids = await getSubmittedBountyIdsByHunter(userStore.address, {
       onProgress: (p) => {

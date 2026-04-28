@@ -77,16 +77,9 @@
             <button
               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-full shadow-sm text-white"
               :style="primaryBtnStyle"
-              @click="connectWallet('injected')"
+              @click="walletOpen = true"
             >
-              {{ t('nav.browserWallet') }}
-            </button>
-            <button
-              class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full shadow-sm border"
-              :style="secondaryBtnStyle"
-              @click="connectWallet('walletconnect')"
-            >
-              {{ t('nav.walletConnect') }}
+              {{ t('walletModal.title') }}
             </button>
           </div>
 
@@ -97,13 +90,37 @@
                 class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border"
                 :style="connectedPillStyle"
               >
-                <div class="w-2 h-2 rounded-full mr-2 animate-pulse" :style="dotStyle" />
-                {{ shortenAddress(userStore.address) }}
+                <AddressBadge :address="userStore.address" :chars="4" />
               </span>
               <span v-if="userStore.chainId" class="text-xs mt-1" :style="mutedStyle">
                 {{ t('nav.chainId') }}: {{ userStore.chainId }}
               </span>
             </div>
+
+            <button
+              v-if="!authStore.isAuthenticated"
+              class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full shadow-sm border"
+              :style="secondaryBtnStyle"
+              @click="signIn"
+            >
+              {{ t('nav.signIn') }}
+            </button>
+            <span
+              v-if="!authStore.isAuthenticated"
+              class="hidden lg:inline text-xs max-w-40"
+              :style="mutedStyle"
+            >
+              {{ t('nav.signInHint') }}
+            </span>
+
+            <button
+              v-else
+              class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full shadow-sm border"
+              :style="secondaryBtnStyle"
+              @click="authStore.signOut()"
+            >
+              {{ t('nav.signOut') }}
+            </button>
 
             <button
               title="Disconnect"
@@ -130,23 +147,44 @@
         </div>
       </div>
     </div>
+
+    <ConnectWalletModal v-model:open="walletOpen" />
   </nav>
 </template>
 
 <script setup lang="ts">
 import { useUserStore } from '../../stores/userStore';
 import { useWeb3 } from '../../composables/useWeb3';
-import { shortenAddress } from '../../utils/format';
 import NotificationBell from '../features/NotificationBell.vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useUiStore } from '../../stores/uiStore';
 import { useI18n } from 'vue-i18n';
+import { useAuthStore } from '../../stores/authStore';
+import { useToast } from '../../composables/useToast';
+import ConnectWalletModal from '../features/ConnectWalletModal.vue';
+import AddressBadge from '../common/AddressBadge.vue';
 
 const userStore = useUserStore();
-const { connectWallet, disconnectWallet, error } = useWeb3();
+const { disconnectWallet, getProvider, error } = useWeb3();
 
 const uiStore = useUiStore();
 const { t } = useI18n();
+const authStore = useAuthStore();
+const { showToast } = useToast();
+
+const walletOpen = ref(false);
+
+const signIn = async () => {
+  try {
+    if (!userStore.isConnected || !userStore.address || !userStore.chainId) return;
+    const provider = getProvider();
+    await authStore.signIn(provider, { address: userStore.address, chainId: userStore.chainId });
+    showToast(t('nav.signedIn'), 'success');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Sign in failed';
+    showToast(msg, 'error');
+  }
+};
 
 const navStyle = computed(() => ({
   backgroundColor: `rgba(var(--surface), 0.72)`,
@@ -185,10 +223,6 @@ const connectedPillStyle = computed(() => ({
   backgroundColor: `rgba(var(--surface), 0.65)`,
   borderColor: `rgb(var(--border))`,
   color: `rgb(var(--text))`,
-}));
-
-const dotStyle = computed(() => ({
-  backgroundColor: `rgb(var(--success))`,
 }));
 
 const iconBtnStyle = computed(() => ({

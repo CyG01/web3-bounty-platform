@@ -76,18 +76,22 @@
       </div>
     </div>
 
-    <div
+    <EmptyState
       v-else-if="latestOpen.length === 0"
-      class="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center"
+      :title="t('home.empty')"
+      :subtitle="t('home.emptyHint')"
+      icon-text="+"
+      variant="sparkles"
     >
-      <p class="text-gray-600">{{ t('home.empty') }}</p>
-      <router-link
-        to="/create"
-        class="inline-flex mt-4 px-5 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
-      >
-        {{ t('home.ctaCreate') }}
-      </router-link>
-    </div>
+      <template #action>
+        <router-link
+          to="/create"
+          class="inline-flex mt-1 px-5 py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+        >
+          {{ t('home.ctaCreate') }}
+        </router-link>
+      </template>
+    </EmptyState>
 
     <div v-else class="grid grid-cols-1 gap-4">
       <BountyCard
@@ -101,44 +105,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { JsonRpcProvider } from 'ethers';
+import { computed, onMounted } from 'vue';
 import BountyCard from '../components/features/BountyCard.vue';
 import { useBounty } from '../composables/useBounty';
 import type { Bounty } from '../types';
-import { formatTokenAmount, getTokenMeta, shortenHex, ZERO_ADDRESS } from '../utils/token';
+import { shortenHex, ZERO_ADDRESS } from '../utils/token';
 import { getHiddenBountyIds } from '../services/spamGuard';
 import { useI18n } from 'vue-i18n';
+import { useTokenStore } from '../stores/tokenStore';
+import EmptyState from '../components/common/EmptyState.vue';
+import { formatDisplayAmount } from '../utils/display';
 
-const { bounties, loading, loadBounties } = useBounty();
+const { bounties, loading, loadFirstPage } = useBounty();
 const zeroAddress = ZERO_ADDRESS;
 const { t } = useI18n();
-
-const rpcUrl = import.meta.env.VITE_RPC_URL || 'http://127.0.0.1:8545';
-const readProvider = new JsonRpcProvider(rpcUrl);
-const tokenMetaCache = reactive<Record<string, { symbol: string; decimals: number }>>({});
-const tokenMetaError = ref<string>('');
+const tokenStore = useTokenStore();
 
 const rewardDisplay = (item: Bounty) => {
   if (!item.tokenAddress || item.tokenAddress === zeroAddress) {
-    return `${item.rewardAmountEth} ETH`;
+    return `${formatDisplayAmount(item.rewardAmountWei, { decimals: 18, maxFraction: 4 })} ETH`;
   }
 
   const key = item.tokenAddress.toLowerCase();
-  const meta = tokenMetaCache[key];
+  const meta = tokenStore.metaByAddress[key];
   if (!meta) {
-    getTokenMeta(readProvider, item.tokenAddress)
-      .then((m) => {
-        tokenMetaCache[key] = m;
-      })
-      .catch(() => {
-        tokenMetaError.value = 'Failed to load token metadata from RPC.';
-      });
+    tokenStore.loadMeta(item.tokenAddress);
     return `${shortenHex(item.tokenAddress)} · ${item.rewardAmountWei} (ERC20)`;
   }
 
   try {
-    const formatted = formatTokenAmount(item.rewardAmountWei, meta.decimals);
+    const formatted = formatDisplayAmount(item.rewardAmountWei, {
+      decimals: meta.decimals,
+      maxFraction: 4,
+    });
     return `${formatted} ${meta.symbol}`;
   } catch {
     return `${item.rewardAmountWei} ${meta.symbol}`;
@@ -166,13 +165,10 @@ const tvlEth = computed(() => {
     }, 0n);
 
   // Use a simple 18-decimals formatting to avoid adding deps
-  const whole = sumWei / 10n ** 18n;
-  const frac = sumWei % 10n ** 18n;
-  const fracStr = frac.toString().padStart(18, '0').slice(0, 4);
-  return `${whole.toString()}.${fracStr}`;
+  return formatDisplayAmount(sumWei, { decimals: 18, maxFraction: 4 });
 });
 
 onMounted(async () => {
-  await loadBounties();
+  await loadFirstPage();
 });
 </script>

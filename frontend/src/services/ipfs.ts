@@ -2,9 +2,29 @@ type IpfsJson = Record<string, unknown>;
 
 const DEFAULT_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
 
+function normalizeGatewayBase(base: string) {
+  return base.replace(/\/+$/, '') + '/';
+}
+
+function getGatewayBases(gatewayBase?: string) {
+  const fromArg = gatewayBase ? [gatewayBase] : [];
+  const fromList = String(import.meta.env.VITE_IPFS_GATEWAYS || '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+  const fromSingle = import.meta.env.VITE_IPFS_GATEWAY
+    ? [String(import.meta.env.VITE_IPFS_GATEWAY)]
+    : [];
+  const bases = [...fromArg, ...fromList, ...fromSingle, DEFAULT_GATEWAY]
+    .map(normalizeGatewayBase)
+    .filter(Boolean);
+  return Array.from(new Set(bases));
+}
+
 export function ipfsToHttp(uri: string, gatewayBase?: string) {
-  const base =
-    (gatewayBase || import.meta.env.VITE_IPFS_GATEWAY || DEFAULT_GATEWAY).replace(/\/+$/, '') + '/';
+  const base = normalizeGatewayBase(
+    gatewayBase || import.meta.env.VITE_IPFS_GATEWAY || DEFAULT_GATEWAY
+  );
   if (!uri) return uri;
 
   if (uri.startsWith('ipfs://')) {
@@ -20,43 +40,59 @@ export function ipfsToHttp(uri: string, gatewayBase?: string) {
   return uri;
 }
 
-export async function fetchIpfsJson<T extends IpfsJson = IpfsJson>(
-  uri: string,
-  opts?: { timeoutMs?: number }
-) {
-  const url = ipfsToHttp(uri);
-  const timeoutMs = opts?.timeoutMs ?? 12_000;
-
+async function fetchWithTimeout(url: string, timeoutMs: number, accept: string) {
   const controller = new globalThis.AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await globalThis.fetch(url, {
       signal: controller.signal,
-      headers: { accept: 'application/json' },
+      headers: { accept },
     });
     if (!res.ok) throw new Error(`IPFS gateway HTTP ${res.status}`);
-    return (await res.json()) as T;
+    return res;
   } finally {
     clearTimeout(t);
   }
 }
 
-export async function fetchIpfsText(uri: string, opts?: { timeoutMs?: number }) {
-  const url = ipfsToHttp(uri);
+export async function fetchIpfsJson<T extends IpfsJson = IpfsJson>(
+  uri: string,
+  opts?: { timeoutMs?: number; gatewayBase?: string }
+) {
   const timeoutMs = opts?.timeoutMs ?? 12_000;
 
-  const controller = new globalThis.AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await globalThis.fetch(url, {
-      signal: controller.signal,
-      headers: { accept: 'text/plain,*/*' },
-    });
-    if (!res.ok) throw new Error(`IPFS gateway HTTP ${res.status}`);
-    return await res.text();
-  } finally {
-    clearTimeout(t);
+  let lastErr: unknown;
+  for (const base of getGatewayBases(opts?.gatewayBase)) {
+    try {
+      const url = ipfsToHttp(uri, base);
+      const res = await fetchWithTimeout(url, timeoutMs, 'application/json');
+      return (await res.json()) as T;
+    } catch (e: unknown) {
+      lastErr = e;
+    }
   }
+
+  throw lastErr instanceof Error ? lastErr : new Error('Failed to load IPFS JSON');
+}
+
+export async function fetchIpfsText(
+  uri: string,
+  opts?: { timeoutMs?: number; gatewayBase?: string }
+) {
+  const timeoutMs = opts?.timeoutMs ?? 12_000;
+
+  let lastErr: unknown;
+  for (const base of getGatewayBases(opts?.gatewayBase)) {
+    try {
+      const url = ipfsToHttp(uri, base);
+      const res = await fetchWithTimeout(url, timeoutMs, 'text/plain,*/*');
+      return await res.text();
+    } catch (e: unknown) {
+      lastErr = e;
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error('Failed to load IPFS text');
 }
 
 export type BountyDescription = {

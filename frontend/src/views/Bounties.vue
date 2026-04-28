@@ -38,11 +38,64 @@
         <button
           class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400 transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]"
           :disabled="loading"
-          @click="loadBounties"
+          @click="loadFirstPage"
         >
           {{ loading ? t('common.refreshing') : t('common.refresh') }}
         </button>
       </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <input
+        v-model="search"
+        type="text"
+        class="px-4 py-3 rounded-lg border bg-[rgba(var(--surface),0.75)] text-sm font-medium text-[rgb(var(--text))]"
+        :placeholder="t('bounties.searchPlaceholder')"
+      />
+
+      <select
+        v-model="tokenType"
+        class="px-3 py-3 rounded-lg bg-[rgba(var(--surface),0.75)] border border-[rgb(var(--border))] text-sm font-semibold text-[rgb(var(--text))]"
+      >
+        <option value="all">{{ t('bounties.tokenAll') }}</option>
+        <option value="eth">{{ t('bounties.tokenEth') }}</option>
+        <option value="erc20">{{ t('bounties.tokenErc20') }}</option>
+      </select>
+
+      <input
+        v-model="tokenQuery"
+        type="text"
+        class="px-4 py-3 rounded-lg border bg-[rgba(var(--surface),0.75)] text-sm font-medium text-[rgb(var(--text))]"
+        :placeholder="t('bounties.tokenQueryPlaceholder')"
+      />
+
+      <input
+        v-model="tagQuery"
+        type="text"
+        class="px-4 py-3 rounded-lg border bg-[rgba(var(--surface),0.75)] text-sm font-medium text-[rgb(var(--text))]"
+        :placeholder="t('bounties.tagPlaceholder')"
+      />
+    </div>
+
+    <div v-if="tagOptions.length" class="flex flex-wrap gap-2">
+      <button
+        class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+        :class="!selectedTag ? 'bg-indigo-600 text-white border-indigo-600' : ''"
+        :style="!selectedTag ? undefined : chipStyle"
+        @click="selectedTag = ''"
+      >
+        {{ t('bounties.tagAll') }}
+      </button>
+      <button
+        v-for="tag in tagOptions"
+        :key="tag"
+        class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+        :class="selectedTag === tag ? 'bg-indigo-600 text-white border-indigo-600' : ''"
+        :style="selectedTag === tag ? undefined : chipStyle"
+        @click="selectedTag = selectedTag === tag ? '' : tag"
+      >
+        {{ tag }}
+      </button>
     </div>
 
     <div
@@ -52,19 +105,23 @@
       {{ error }}
     </div>
 
-    <div
-      v-if="tokenMetaError"
-      class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-    >
-      {{ tokenMetaError }}
-    </div>
-
-    <div
+    <EmptyState
       v-if="!loading && viewItems.length === 0"
-      class="rounded-xl border border-dashed border-[rgb(var(--border))] bg-[rgba(var(--surface),0.75)] p-8 text-center text-[rgb(var(--muted))]"
+      :title="t('bounties.empty')"
+      :subtitle="t('bounties.emptyHint')"
+      icon-text="?"
+      :variant="selectedTag || search || tokenQuery || tagQuery ? 'search' : 'sparkles'"
     >
-      {{ t('bounties.empty') }}
-    </div>
+      <template #action>
+        <router-link
+          to="/create"
+          class="px-5 py-3 rounded-lg text-white text-sm font-semibold transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]"
+          :style="primaryBtnStyle"
+        >
+          {{ t('home.ctaCreate') }}
+        </router-link>
+      </template>
+    </EmptyState>
 
     <div v-if="loading" class="grid grid-cols-1 gap-4">
       <div
@@ -108,51 +165,71 @@
         </template>
       </BountyCard>
     </div>
+
+    <div v-if="!loading && hasMore" class="flex justify-center pt-2">
+      <button
+        class="px-5 py-3 rounded-lg bg-[rgba(var(--surface),0.75)] border border-[rgb(var(--border))] text-sm font-semibold text-[rgb(var(--text))] hover:bg-[rgba(var(--surface-2),0.55)] ui-glow transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]"
+        @click="loadNextPage"
+      >
+        {{ t('common.loadMore') }}
+      </button>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useBounty } from '../composables/useBounty';
 import type { Bounty } from '../types';
-import { JsonRpcProvider } from 'ethers';
-import { formatTokenAmount, getTokenMeta, shortenHex, ZERO_ADDRESS } from '../utils/token';
+import { shortenHex, ZERO_ADDRESS } from '../utils/token';
 import BountyCard from '../components/features/BountyCard.vue';
-import { getHiddenBountyIds, reportBounty, reportHideThreshold } from '../services/spamGuard';
+import {
+  fetchHiddenBountyIdsRemote,
+  getHiddenBountyIds,
+  reportBounty,
+  reportBountyRemote,
+  reportHideThreshold,
+} from '../services/spamGuard';
 import { useToast } from '../composables/useToast';
 import { useI18n } from 'vue-i18n';
+import { useTokenStore } from '../stores/tokenStore';
+import EmptyState from '../components/common/EmptyState.vue';
+import { getCachedBountyTags, loadBountyTags, seedBountyTags } from '../utils/bountyTags';
+import { formatDisplayAmount } from '../utils/display';
 
-const { bounties, loading, error, loadBounties } = useBounty();
+const { bounties, loading, error, loadFirstPage, loadNextPage, hasMore } = useBounty();
 const { showToast } = useToast();
 const { t } = useI18n();
+const tokenStore = useTokenStore();
 const zeroAddress = ZERO_ADDRESS;
 
-const rpcUrl = import.meta.env.VITE_RPC_URL || 'http://127.0.0.1:8545';
-const readProvider = new JsonRpcProvider(rpcUrl);
+const primaryBtnStyle = computed(() => ({
+  background: `linear-gradient(135deg, rgb(var(--primary)) 0%, rgb(var(--primary-2)) 100%)`,
+}));
 
-const tokenMetaCache = reactive<Record<string, { symbol: string; decimals: number }>>({});
-const tokenMetaError = ref<string>('');
+const chipStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.75)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--text))`,
+}));
 
 const rewardDisplay = (item: Bounty) => {
   if (!item.tokenAddress || item.tokenAddress === zeroAddress) {
-    return `${item.rewardAmountEth} ETH`;
+    return `${formatDisplayAmount(item.rewardAmountWei, { decimals: 18, maxFraction: 4 })} ETH`;
   }
 
   const key = item.tokenAddress.toLowerCase();
-  const meta = tokenMetaCache[key];
+  const meta = tokenStore.metaByAddress[key];
   if (!meta) {
-    getTokenMeta(readProvider, item.tokenAddress)
-      .then((m) => {
-        tokenMetaCache[key] = m;
-      })
-      .catch(() => {
-        tokenMetaError.value = 'Failed to load token metadata from RPC.';
-      });
+    tokenStore.loadMeta(item.tokenAddress);
     return `${shortenHex(item.tokenAddress)} · ${item.rewardAmountWei} (ERC20)`;
   }
 
   try {
-    const formatted = formatTokenAmount(item.rewardAmountWei, meta.decimals);
+    const formatted = formatDisplayAmount(item.rewardAmountWei, {
+      decimals: meta.decimals,
+      maxFraction: 4,
+    });
     return `${formatted} ${meta.symbol}`;
   } catch {
     return `${item.rewardAmountWei} ${meta.symbol}`;
@@ -165,13 +242,86 @@ const sortKey = ref<'deadline_asc' | 'deadline_desc' | 'reward_asc' | 'reward_de
   'deadline_asc'
 );
 const hiddenSet = ref<Set<number>>(getHiddenBountyIds());
+const search = ref('');
+const tokenType = ref<'all' | 'eth' | 'erc20'>('all');
+const tokenQuery = ref('');
+const tagQuery = ref('');
+const selectedTag = ref('');
+
+const bountyTags = computed<Record<number, string[]>>(() => {
+  const entries = bounties.value.map((b) => [b.id, getCachedBountyTags(b.id)]);
+  return Object.fromEntries(entries);
+});
+
+const tagOptions = computed(() => {
+  const normalizedQuery = tagQuery.value.trim().toLowerCase();
+  const allTags = Array.from(
+    new Set(
+      bounties.value.flatMap((b) => {
+        const cached = bountyTags.value[b.id];
+        return cached?.length ? cached : seedBountyTags(b);
+      })
+    )
+  ).sort();
+  if (!normalizedQuery) return allTags;
+  return allTags.filter((tag) => tag.toLowerCase().includes(normalizedQuery));
+});
 
 const filteredItems = computed(() => {
-  const visible = bounties.value.filter((b) => !hiddenSet.value.has(b.id));
-  if (activeTab.value === 'all') return visible;
-  if (activeTab.value === 'active')
-    return visible.filter((b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED');
-  return visible.filter((b) => b.status === 'COMPLETED');
+  let visible = bounties.value.filter((b) => !hiddenSet.value.has(b.id));
+
+  if (activeTab.value === 'active') {
+    visible = visible.filter((b) => b.status === 'OPEN' || b.status === 'WORK_SUBMITTED');
+  } else if (activeTab.value === 'completed') {
+    visible = visible.filter((b) => b.status === 'COMPLETED');
+  }
+
+  if (tokenType.value === 'eth') {
+    visible = visible.filter((b) => !b.tokenAddress || b.tokenAddress === zeroAddress);
+  } else if (tokenType.value === 'erc20') {
+    visible = visible.filter((b) => b.tokenAddress && b.tokenAddress !== zeroAddress);
+  }
+
+  const q = search.value.trim().toLowerCase();
+  if (q) {
+    visible = visible.filter((b) => {
+      return (
+        String(b.title || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(b.descriptionURI || '')
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }
+
+  const tq = tokenQuery.value.trim().toLowerCase();
+  if (tq) {
+    visible = visible.filter((b) => {
+      const addr = String(b.tokenAddress || '').toLowerCase();
+      if (addr && addr.includes(tq)) return true;
+      if (!addr || addr === zeroAddress) return false;
+      const meta = tokenStore.metaByAddress[addr];
+      const sym = String(meta?.symbol || '').toLowerCase();
+      if (sym) return sym.includes(tq);
+      tokenStore.loadMeta(addr);
+      return false;
+    });
+  }
+
+  const activeTag = selectedTag.value || '';
+  const rawTagQuery = tagQuery.value.trim().toLowerCase();
+  if (activeTag || rawTagQuery) {
+    visible = visible.filter((b) => {
+      const tags = bountyTags.value[b.id] || [];
+      if (activeTag && tags.includes(activeTag)) return true;
+      if (rawTagQuery && tags.some((tag) => tag.toLowerCase().includes(rawTagQuery))) return true;
+      return false;
+    });
+  }
+
+  return visible;
 });
 
 const viewItems = computed(() => {
@@ -205,18 +355,48 @@ const tabs = computed(() => {
   ];
 });
 
-const report = (bountyId: number) => {
-  const next = reportBounty(bountyId);
-  hiddenSet.value = getHiddenBountyIds();
-  const threshold = reportHideThreshold();
-  if (next >= threshold) {
-    showToast(t('bounties.reportHidden', { id: bountyId }), 'info');
-  } else {
-    showToast(t('bounties.reportedCount', { id: bountyId, next, threshold }), 'info');
+const report = async (bountyId: number) => {
+  try {
+    const threshold = reportHideThreshold();
+    const { next } = await reportBountyRemote(bountyId);
+    hiddenSet.value = getHiddenBountyIds();
+    if (next >= threshold) {
+      showToast(t('bounties.reportHidden', { id: bountyId }), 'info');
+    } else {
+      showToast(t('bounties.reportedCount', { id: bountyId, next, threshold }), 'info');
+    }
+  } catch {
+    const next = reportBounty(bountyId);
+    hiddenSet.value = getHiddenBountyIds();
+    const threshold = reportHideThreshold();
+    if (next >= threshold) {
+      showToast(t('bounties.reportHidden', { id: bountyId }), 'info');
+    } else {
+      showToast(t('bounties.reportedCount', { id: bountyId, next, threshold }), 'info');
+    }
   }
 };
 
-onMounted(() => {
-  loadBounties();
+onMounted(async () => {
+  loadFirstPage();
+  try {
+    const remoteHidden = await fetchHiddenBountyIdsRemote();
+    if (remoteHidden.size) {
+      hiddenSet.value = new Set([...hiddenSet.value, ...remoteHidden]);
+    }
+  } catch {
+    // ignore remote spam guard failures
+  }
 });
+
+watch(
+  () => bounties.value.map((b) => `${b.id}:${b.descriptionURI}`).join('|'),
+  () => {
+    for (const bounty of bounties.value) {
+      seedBountyTags(bounty);
+      void loadBountyTags(bounty);
+    }
+  },
+  { immediate: true }
+);
 </script>

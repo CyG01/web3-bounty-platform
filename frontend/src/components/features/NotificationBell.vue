@@ -1,8 +1,9 @@
 <template>
   <div class="relative">
     <button
-      class="relative p-2 text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded-full transition-colors"
-      title="Notifications"
+      class="relative p-2 rounded-full transition-colors border"
+      :style="iconBtnStyle"
+      :title="t('notifications.title')"
       @click="toggleOpen"
     >
       <svg
@@ -29,35 +30,36 @@
 
     <div
       v-if="open"
-      class="absolute right-0 mt-2 w-80 max-h-96 overflow-auto bg-white border border-gray-200 rounded-xl shadow-xl z-50"
+      class="absolute right-0 mt-2 w-80 max-h-96 overflow-auto rounded-xl shadow-xl z-50 ui-glow ui-shimmer-border"
+      :style="panelStyle"
     >
-      <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <p class="text-sm font-semibold text-gray-900">Notifications</p>
-        <button
-          class="text-xs text-indigo-600 font-semibold hover:text-indigo-700"
-          @click="refresh"
-        >
-          Refresh
+      <div class="px-4 py-3 border-b flex items-center justify-between" :style="dividerStyle">
+        <p class="text-sm font-semibold" :style="titleStyle">{{ t('notifications.title') }}</p>
+        <button class="text-xs font-semibold" :style="linkStyle" @click="refresh">
+          {{ t('common.refresh') }}
         </button>
       </div>
 
       <div v-if="loading" class="p-4 space-y-3">
-        <div v-for="i in 3" :key="i" class="h-12 rounded bg-gray-100 animate-pulse" />
+        <div v-for="i in 3" :key="i" class="h-12 rounded animate-pulse" :style="skeletonStyle" />
       </div>
-      <div v-else-if="items.length === 0" class="p-4 text-sm text-gray-500">
-        No notifications yet.
+      <div v-else-if="items.length === 0" class="p-4 text-sm" :style="mutedStyle">
+        {{ t('notifications.empty') }}
       </div>
 
-      <router-link
-        v-for="n in items"
-        v-else
-        :key="n.id"
-        :to="`/bounties/${n.bountyId}`"
-        class="block px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
-      >
-        <p class="text-sm text-gray-800">{{ n.message }}</p>
-        <p class="text-xs text-gray-400 mt-1">Bounty #{{ n.bountyId }}</p>
-      </router-link>
+      <div v-else>
+        <component
+          :is="n.to ? 'router-link' : 'div'"
+          v-for="n in items"
+          :key="n.id"
+          :to="n.to"
+          class="block px-4 py-3 border-b last:border-b-0 hover:-translate-y-0.5 transition-transform duration-200"
+          :style="itemStyle"
+        >
+          <p class="text-sm" :style="textStyle">{{ n.message }}</p>
+          <p class="text-xs mt-1" :style="mutedStyle">Bounty #{{ n.bountyId }}</p>
+        </component>
+      </div>
     </div>
   </div>
 </template>
@@ -66,15 +68,61 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useUserStore } from '../../stores/userStore';
 import { useBounty, type UserNotification } from '../../composables/useBounty';
+import { useI18n } from 'vue-i18n';
+import { fetchComments } from '../../services/comments';
+import type { Bounty } from '../../types';
 
 const userStore = useUserStore();
-const { getUserNotifications } = useBounty();
+const { getUserNotifications, loadFirstPage, loadNextPage, hasMore, bounties } = useBounty();
+const { t } = useI18n();
 
 const open = ref(false);
 const loading = ref(false);
-const items = ref<UserNotification[]>([]);
+type InboxNotification = UserNotification & { to?: string };
+
+const items = ref<InboxNotification[]>([]);
 const seenIds = ref<Set<string>>(new Set());
 let timer: ReturnType<typeof globalThis.setInterval> | undefined;
+
+const titleStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const textStyle = computed(() => ({
+  color: `rgb(var(--text))`,
+}));
+
+const mutedStyle = computed(() => ({
+  color: `rgb(var(--muted))`,
+}));
+
+const panelStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.92)`,
+  borderColor: `rgb(var(--border))`,
+  borderWidth: '1px',
+}));
+
+const dividerStyle = computed(() => ({
+  borderColor: `rgb(var(--border))`,
+}));
+
+const itemStyle = computed(() => ({
+  borderColor: `rgb(var(--border))`,
+}));
+
+const skeletonStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface-2), 0.55)`,
+}));
+
+const iconBtnStyle = computed(() => ({
+  backgroundColor: `rgba(var(--surface), 0.55)`,
+  borderColor: `rgb(var(--border))`,
+  color: `rgb(var(--muted))`,
+}));
+
+const linkStyle = computed(() => ({
+  color: `rgb(var(--primary))`,
+}));
 
 const seenKey = computed(() => `bounty_seen_notifications_${userStore.address.toLowerCase()}`);
 const unreadCount = computed(() => items.value.filter((n) => !seenIds.value.has(n.id)).length);
@@ -104,10 +152,80 @@ const refresh = async () => {
   if (!userStore.isConnected || !userStore.address) return;
   loading.value = true;
   try {
-    items.value = await getUserNotifications(userStore.address);
+    const [chainNotes, extraNotes] = await Promise.all([
+      getUserNotifications(userStore.address),
+      loadDerivedNotifications(),
+    ]);
+    items.value = [...chainNotes, ...extraNotes].sort((a, b) => b.blockNumber - a.blockNumber);
   } finally {
     loading.value = false;
   }
+};
+
+const loadPublishedBounties = async () => {
+  await loadFirstPage();
+  let guard = 0;
+  while (hasMore.value && guard < 10) {
+    guard += 1;
+    await loadNextPage();
+  }
+  const me = userStore.address.toLowerCase();
+  return bounties.value.filter((b) => b.publisher.toLowerCase() === me);
+};
+
+const buildExpiryNotifications = (published: Bounty[]) => {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const horizonSec = nowSec + 24 * 60 * 60;
+  return published
+    .filter(
+      (b) =>
+        (b.status === 'OPEN' || b.status === 'WORK_SUBMITTED') &&
+        b.deadline > nowSec &&
+        b.deadline <= horizonSec
+    )
+    .map(
+      (b) =>
+        ({
+          id: `expiring_${b.id}_${b.deadline}`,
+          bountyId: b.id,
+          blockNumber: b.deadline,
+          txHash: '',
+          kind: 'submission_for_my_bounty',
+          message: t('notifications.bountyExpiring', { id: b.id }),
+          to: `/bounties/${b.id}`,
+        }) satisfies InboxNotification
+    );
+};
+
+const buildCommentNotifications = async (published: Bounty[]) => {
+  const out: InboxNotification[] = [];
+  for (const bounty of published.slice(0, 20)) {
+    try {
+      const comments = await fetchComments(bounty.id);
+      const latestOther = comments.find(
+        (comment) => comment.author.toLowerCase() !== userStore.address.toLowerCase()
+      );
+      if (!latestOther) continue;
+      out.push({
+        id: `comment_${bounty.id}_${latestOther.id}`,
+        bountyId: bounty.id,
+        blockNumber: Math.floor(latestOther.createdAt / 1000),
+        txHash: '',
+        kind: 'submission_for_my_bounty',
+        message: t('notifications.newComment', { id: bounty.id }),
+        to: `/bounties/${bounty.id}`,
+      });
+    } catch {
+      // ignore comment fetch failures
+    }
+  }
+  return out;
+};
+
+const loadDerivedNotifications = async () => {
+  const published = await loadPublishedBounties();
+  const [commentNotes] = await Promise.all([buildCommentNotifications(published)]);
+  return [...buildExpiryNotifications(published), ...commentNotes];
 };
 
 const toggleOpen = async () => {
@@ -122,7 +240,7 @@ const startPolling = () => {
   if (timer) globalThis.clearInterval(timer);
   timer = globalThis.setInterval(() => {
     refresh();
-  }, 45000);
+  }, 60000);
 };
 
 onMounted(() => {

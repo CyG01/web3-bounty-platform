@@ -5,8 +5,9 @@
         <h2 class="text-lg font-semibold truncate" :style="titleStyle">
           #{{ props.bounty.id }} - {{ props.bounty.title }}
         </h2>
-        <p class="text-xs break-all" :style="mutedStyle">
-          {{ t('common.publisher') }}: {{ props.bounty.publisher }}
+        <p class="text-xs flex items-center gap-2 min-w-0" :style="mutedStyle">
+          <span>{{ t('common.publisher') }}:</span>
+          <AddressBadge :address="props.bounty.publisher" />
         </p>
       </div>
       <StatusBadge :status="props.bounty.status" />
@@ -28,8 +29,9 @@
       </div>
       <div class="rounded-lg px-3 py-2" :style="metricStyle">
         <p :style="mutedStyle">{{ t('common.winner') }}</p>
-        <p class="font-semibold break-all" :style="titleStyle">
-          {{ props.bounty.successfulHunter === zeroAddress ? '-' : props.bounty.successfulHunter }}
+        <p class="font-semibold min-w-0" :style="titleStyle">
+          <span v-if="props.bounty.successfulHunter === zeroAddress">-</span>
+          <AddressBadge v-else :address="props.bounty.successfulHunter" />
         </p>
       </div>
     </div>
@@ -55,6 +57,7 @@ import StatusBadge from './StatusBadge.vue';
 import { ZERO_ADDRESS } from '../../utils/token';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import AddressBadge from '../common/AddressBadge.vue';
 
 const props = defineProps<{
   bounty: Bounty;

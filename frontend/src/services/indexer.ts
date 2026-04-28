@@ -67,6 +67,34 @@ export function hasIndexer() {
   return Boolean(INDEXER_URL);
 }
 
+export async function fetchBountiesPageFromIndexer(opts: {
+  first: number;
+  skip: number;
+}): Promise<Bounty[]> {
+  const first = Math.max(1, Math.min(200, Math.floor(opts.first || 20)));
+  const skip = Math.max(0, Math.floor(opts.skip || 0));
+
+  const data = await query<{ bounties: GraphBounty[] }>(
+    `query BountiesPage($first: Int!, $skip: Int!) {
+      bounties(first: $first, skip: $skip, orderBy: createdAt, orderDirection: desc) {
+        id
+        bountyId
+        publisher
+        title
+        descriptionURI
+        rewardAmount
+        tokenAddress
+        deadline
+        status
+        successfulHunter
+        createdAt
+      }
+    }`,
+    { first, skip }
+  );
+  return data.bounties.map(mapBounty);
+}
+
 export async function fetchBountiesFromIndexer(limit = 200): Promise<Bounty[]> {
   const data = await query<{ bounties: GraphBounty[] }>(
     `query Bounties($limit: Int!) {
