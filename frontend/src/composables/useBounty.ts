@@ -92,11 +92,11 @@ export function useBounty() {
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  type QueryFilterFn = (filter: unknown, fromBlock: number, toBlock: number) => Promise<unknown[]>;
-  const queryFilter = (c: Contract) => (c as unknown as { queryFilter: QueryFilterFn }).queryFilter;
-
   const queryFilterPaged = async (filter: unknown, onProgress?: (p: QueryProgress) => void) => {
     const contract = await getReadContract();
+    const queryableContract = contract as Contract & {
+      queryFilter: (event: unknown, fromBlock?: number, toBlock?: number) => Promise<unknown[]>;
+    };
     const latest = await provider.getBlockNumber();
     const fromBlock = Number.isFinite(DEPLOY_BLOCK) && DEPLOY_BLOCK > 0 ? DEPLOY_BLOCK : 0;
     let windowSize =
@@ -121,7 +121,7 @@ export function useBounty() {
       });
 
       try {
-        const part = await queryFilter(contract)(filter, start, end);
+        const part = await queryableContract.queryFilter(filter, start, end);
         logs.push(...part);
         doneRanges += 1;
         start = end + 1;

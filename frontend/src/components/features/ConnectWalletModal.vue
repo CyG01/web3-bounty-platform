@@ -123,7 +123,14 @@
             </button>
           </div>
 
-          <div class="mt-5 flex justify-end">
+          <div class="mt-5 grid grid-cols-2 gap-3">
+            <button
+              class="px-4 py-2 rounded-lg border text-sm font-semibold transition-colors hover:bg-white/5"
+              :style="secondaryBtnStyle"
+              @click="continueAsGuest"
+            >
+              {{ t('walletModal.guestLogin') }}
+            </button>
             <button
               class="px-4 py-2 rounded-lg border text-sm font-semibold transition-colors hover:bg-white/5"
               :style="secondaryBtnStyle"
@@ -142,12 +149,14 @@
 import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useWeb3 } from '../../composables/useWeb3';
+import { useUserStore } from '../../stores/userStore';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>();
 
 const { t } = useI18n();
 const { connectWallet, error, hasWalletConnectConfig } = useWeb3();
+const userStore = useUserStore();
 const providers = computed(() => {
   const eth = window.ethereum as unknown as { providers?: Array<Record<string, unknown>> } & Record<
     string,
@@ -185,6 +194,11 @@ const connect = async (mode: 'injected' | 'walletconnect' | 'metamask' | 'okx' |
 
   await connectWallet(mode);
   if (!error.value) close();
+};
+
+const continueAsGuest = () => {
+  userStore.continueAsGuest();
+  close();
 };
 
 watch(

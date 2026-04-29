@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-04-28T14:09:00.075Z",
+  "network": "localhost",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "bountyContract": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+  "demoToken": {
+    "symbol": "dUSD",
+    "address": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+    "decimals": 18
+  },
+  "demoMnemonic": "test test test test test test test test test test test junk",
+  "accounts": {
+    "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "publisherA": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "publisherB": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "hunterA": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+    "hunterB": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+    "reviewer": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+  },
+  "seededBounties": {
+    "b1": 1,
+    "b2": 2,
+    "b3": 3,
+    "b4": 4,
+    "b5": 5,
+    "b6": 6
+  },
+  "notes": [
+    "Import mnemonic into MetaMask (or any wallet) and switch to localhost:8545 / chainId 31337.",
+    "Profile page is address-scoped: different demo roles show different published/participated lists.",
+    "Bounty statuses seeded: OPEN, WORK_SUBMITTED, COMPLETED, CANCELLED."
+  ]
+}

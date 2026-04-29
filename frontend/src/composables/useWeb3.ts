@@ -16,12 +16,16 @@ type InjectedProviderLike = {
   isCoinbaseWallet?: boolean;
   request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   on?: (event: string, cb: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, cb: (...args: unknown[]) => void) => void;
 };
+
+// Keep ethers/wallet instances outside Vue reactivity to avoid Proxy wrapping.
+let browserProvider: BrowserProvider | null = null;
+let walletConnectProvider: EthereumProvider | null = null;
+let activeEip1193Provider: InjectedProviderLike | EthereumProvider | null = null;
 
 export function useWeb3() {
   const userStore = useUserStore();
-  const provider = ref<BrowserProvider | null>(null);
-  const wcProvider = ref<EthereumProvider | null>(null);
   const error = ref<string>('');
 
   const listInjectedProviders = () => {
@@ -53,7 +57,8 @@ export function useWeb3() {
   const initInjectedProvider = (mode: ConnectMode = 'injected') => {
     const picked = pickInjectedProvider(mode);
     if (!picked) return false;
-    provider.value = new BrowserProvider(picked as unknown as never);
+    activeEip1193Provider = picked;
+    browserProvider = null;
     return true;
   };
 
@@ -62,9 +67,9 @@ export function useWeb3() {
     if (!projectId) {
       throw new Error('WalletConnect is not configured. Please set VITE_WALLETCONNECT_PROJECT_ID.');
     }
-    if (wcProvider.value) return wcProvider.value;
+    if (walletConnectProvider) return walletConnectProvider;
 
-    wcProvider.value = await EthereumProvider.init({
+    walletConnectProvider = await EthereumProvider.init({
       projectId,
       chains: [1, 11155111, 31337],
       showQrModal: true,
@@ -78,7 +83,19 @@ export function useWeb3() {
         icons: [],
       },
     });
-    return wcProvider.value;
+    return walletConnectProvider;
+  };
+
+  const requestRpc = async (method: string, params: unknown[] = []) => {
+    if (!activeEip1193Provider?.request) throw new Error('No provider available');
+    return activeEip1193Provider.request({ method, params });
+  };
+
+  const ensureBrowserProvider = () => {
+    if (browserProvider) return browserProvider;
+    if (!activeEip1193Provider) throw new Error('No provider available');
+    browserProvider = new BrowserProvider(activeEip1193Provider as unknown as never);
+    return browserProvider;
   };
 
   const connectWallet = async (mode: ConnectMode = 'auto') => {
@@ -89,21 +106,23 @@ export function useWeb3() {
       if (mode === 'walletconnect') {
         const wc = await initWalletConnectProvider();
         await wc.enable();
-        provider.value = new BrowserProvider(wc as unknown as never);
+        activeEip1193Provider = wc;
+        browserProvider = null;
         setupEventListeners();
-        accounts = (await provider.value.send('eth_requestAccounts', [])) as string[];
+        accounts = (await requestRpc('eth_requestAccounts', [])) as string[];
       } else {
         const injectedMode: ConnectMode =
           mode === 'metamask' || mode === 'okx' || mode === 'coinbase' ? mode : 'injected';
         const hasInjected = initInjectedProvider(injectedMode);
-        if (hasInjected && provider.value) {
-          accounts = (await provider.value.send('eth_requestAccounts', [])) as string[];
+        if (hasInjected) {
+          accounts = (await requestRpc('eth_requestAccounts', [])) as string[];
         } else if (mode === 'auto') {
           const wc = await initWalletConnectProvider();
           await wc.enable();
-          provider.value = new BrowserProvider(wc as unknown as never);
+          activeEip1193Provider = wc;
+          browserProvider = null;
           setupEventListeners();
-          accounts = (await provider.value.send('eth_requestAccounts', [])) as string[];
+          accounts = (await requestRpc('eth_requestAccounts', [])) as string[];
           mode = 'walletconnect';
         } else {
           throw new Error(
@@ -114,8 +133,11 @@ export function useWeb3() {
 
       if (accounts.length > 0) {
         userStore.setAccount(accounts[0], mode === 'walletconnect' ? 'walletconnect' : 'injected');
-        const network = await provider.value.getNetwork();
-        userStore.setChainId(Number(network.chainId));
+        const chainIdHex = (await requestRpc('eth_chainId', [])) as string;
+        const chainId = chainIdHex?.startsWith('0x')
+          ? parseInt(chainIdHex, 16)
+          : Number(chainIdHex);
+        userStore.setChainId(chainId);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to connect wallet';
@@ -140,15 +162,15 @@ export function useWeb3() {
       });
     }
 
-    if (wcProvider.value) {
-      wcProvider.value.on('accountsChanged', (accounts: string[]) => {
+    if (walletConnectProvider) {
+      walletConnectProvider.on('accountsChanged', (accounts: string[]) => {
         if (accounts.length > 0) {
           userStore.setAccount(accounts[0], 'walletconnect');
         } else {
           userStore.disconnect();
         }
       });
-      wcProvider.value.on('chainChanged', (chainIdHex: string | number) => {
+      walletConnectProvider.on('chainChanged', (chainIdHex: string | number) => {
         const value =
           typeof chainIdHex === 'string'
             ? chainIdHex.startsWith('0x')
@@ -161,48 +183,53 @@ export function useWeb3() {
   };
 
   const getBountyContract = async () => {
-    if (!provider.value) initInjectedProvider();
-    if (!provider.value) throw new Error('No provider available');
+    if (!browserProvider) initInjectedProvider();
+    const currentProvider = ensureBrowserProvider();
 
-    let address = BOUNTY_CONTRACT_ADDRESS;
-    if (!address) {
-      const chainId = userStore.chainId;
-      const networkName = networkNameFromChainId(chainId);
-      const deployment = await loadDeployment(networkName);
-      address = deployment?.address || '';
-    }
+    const chainId = userStore.chainId;
+    const networkName = networkNameFromChainId(chainId);
+    const deployment = networkName ? await loadDeployment(networkName) : null;
+    let address = deployment?.address || BOUNTY_CONTRACT_ADDRESS;
 
     if (!address) throw new Error('VITE_BOUNTY_CONTRACT_ADDRESS is not configured');
 
-    const signer = await provider.value.getSigner();
+    const code = await currentProvider.getCode(address);
+    if (!code || code === '0x') {
+      throw new Error(
+        `No Bounty contract found at ${address} on chain ${chainId ?? 'unknown'}. Please switch wallet network and retry.`
+      );
+    }
+
+    const signer = await currentProvider.getSigner();
     return new Contract(address, BountyABI, signer);
   };
 
   const getSigner = async () => {
-    if (!provider.value) throw new Error('No provider available');
-    return provider.value.getSigner();
+    const currentProvider = ensureBrowserProvider();
+    return currentProvider.getSigner();
   };
 
   const getProvider = () => {
-    if (!provider.value) throw new Error('No provider available');
-    return provider.value;
+    return ensureBrowserProvider();
   };
 
   const switchToSupportedChain = async () => {
-    if (!provider.value) return;
+    if (!activeEip1193Provider) return;
     const targetChainHex = import.meta.env.VITE_DEFAULT_CHAIN_HEX || '0xaa36a7'; // sepolia
-    await provider.value.send('wallet_switchEthereumChain', [{ chainId: targetChainHex }]);
+    await requestRpc('wallet_switchEthereumChain', [{ chainId: targetChainHex }]);
   };
 
   const disconnectWallet = async () => {
-    if (userStore.connector === 'walletconnect' && wcProvider.value) {
-      await wcProvider.value.disconnect();
+    if (userStore.connector === 'walletconnect' && walletConnectProvider) {
+      await walletConnectProvider.disconnect();
+      walletConnectProvider = null;
     }
+    browserProvider = null;
+    activeEip1193Provider = null;
     userStore.disconnect();
   };
 
   onMounted(() => {
-    initInjectedProvider();
     setupEventListeners();
   });
 

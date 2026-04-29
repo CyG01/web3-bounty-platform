@@ -21,6 +21,8 @@ export const messages = {
       themeLight: 'Light',
       themeDark: 'Dark',
       themeNeon: 'Neon',
+      guestMode: 'Guest mode',
+      guestNoSignIn: 'Guest mode does not support wallet signature sign in.',
     },
     common: {
       back: 'Back',
@@ -35,6 +37,7 @@ export const messages = {
       publisher: 'Publisher',
       viewAction: 'View & Action',
       noData: 'No data',
+      guestTxDisabled: 'Guest mode can browse and comment but cannot send on-chain transactions.',
     },
     footer: {
       tagline: 'A modern on-chain bounty platform for builders.',
@@ -111,6 +114,7 @@ export const messages = {
       creating: 'Creating bounty...',
       success: 'Bounty created successfully! Redirecting...',
       fail: 'Failed to create bounty',
+      guestHint: 'Guest mode is read-only for on-chain actions. Connect a wallet to publish tasks.',
     },
     profile: {
       title: 'My Profile',
@@ -168,6 +172,7 @@ export const messages = {
       submit: 'Post',
       signInHint: 'Sign in to post comments.',
       connectHint: 'Connect wallet to post comments.',
+      guestSignInHint: 'Guest mode cannot complete wallet signature login.',
     },
     sidebar: {
       quickActions: 'Quick Actions',
@@ -201,6 +206,7 @@ export const messages = {
       notInstalled: 'Not installed',
       ready: 'Ready',
       notReady: 'Not ready',
+      guestLogin: 'Continue as guest',
       close: 'Close',
     },
   },
@@ -222,6 +228,8 @@ export const messages = {
       themeLight: '明亮',
       themeDark: '暗黑',
       themeNeon: '霓虹',
+      guestMode: '游客模式',
+      guestNoSignIn: '游客模式不支持钱包签名登录。',
     },
     common: {
       back: '返回',
@@ -236,6 +244,7 @@ export const messages = {
       publisher: '发布者',
       viewAction: '查看与操作',
       noData: '暂无数据',
+      guestTxDisabled: '游客模式可浏览和留言，但不能发起链上交易。',
     },
     footer: {
       tagline: '面向开发者的现代链上悬赏平台。',
@@ -308,6 +317,7 @@ export const messages = {
       creating: '正在创建悬赏...',
       success: '悬赏创建成功！正在跳转...',
       fail: '创建悬赏失败',
+      guestHint: '游客模式下链上写操作不可用，发布任务请先连接钱包。',
     },
     profile: {
       title: '我的主页',
@@ -365,6 +375,7 @@ export const messages = {
       submit: '发布',
       signInHint: '登录后才能留言。',
       connectHint: '连接钱包后才能留言。',
+      guestSignInHint: '游客模式无法完成钱包签名登录。',
     },
     sidebar: {
       quickActions: '快捷操作',
@@ -398,6 +409,7 @@ export const messages = {
       notInstalled: '未安装',
       ready: '可用',
       notReady: '未就绪',
+      guestLogin: '游客登录',
       close: '关闭',
     },
   },

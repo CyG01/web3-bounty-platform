@@ -27,6 +27,8 @@
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/01_deploy_bounty.js --network localhost",
     "setup:local:erc20": "hardhat run scripts/02_setup_mock.js --network localhost",
+    "seed:demo": "hardhat run scripts/04_seed_demo_data.js --network localhost",
+    "demo:bootstrap": "hardhat run scripts/05_one_click_demo.js --network localhost",
     "sync-abi": "node scripts/03_sync_frontend_abi.js",
     "deploy:local:sync": "npm run compile && npm run deploy:local && npm run sync-abi",
     "deploy:sepolia": "hardhat run scripts/01_deploy_bounty.js --network sepolia",

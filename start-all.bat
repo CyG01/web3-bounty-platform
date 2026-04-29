@@ -47,7 +47,7 @@ if !errorlevel! EQU 0 (
   echo Frontend dev server already running on port !WEB_PORT!. Skipping duplicate startup.
 ) else (
   echo [5/5] Starting frontend dev server...
-  start "Web3Bounty - Frontend" /D "%~dp0frontend" cmd /k "npm run dev"
+  start "Web3Bounty - Frontend" /D "%~dp0frontend" cmd /k "npm run dev -- --host 127.0.0.1 --port !WEB_PORT! --strictPort"
 )
 
 echo [Done] Startup complete.

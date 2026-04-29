@@ -92,13 +92,16 @@
               >
                 <AddressBadge :address="userStore.address" :chars="4" />
               </span>
-              <span v-if="userStore.chainId" class="text-xs mt-1" :style="mutedStyle">
+              <span v-if="userStore.isGuest" class="text-xs mt-1" :style="mutedStyle">
+                {{ t('nav.guestMode') }}
+              </span>
+              <span v-else-if="userStore.chainId" class="text-xs mt-1" :style="mutedStyle">
                 {{ t('nav.chainId') }}: {{ userStore.chainId }}
               </span>
             </div>
 
             <button
-              v-if="!authStore.isAuthenticated"
+              v-if="!authStore.isAuthenticated && !userStore.isGuest"
               class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-full shadow-sm border"
               :style="secondaryBtnStyle"
               @click="signIn"
@@ -106,7 +109,7 @@
               {{ t('nav.signIn') }}
             </button>
             <span
-              v-if="!authStore.isAuthenticated"
+              v-if="!authStore.isAuthenticated && !userStore.isGuest"
               class="hidden lg:inline text-xs max-w-40"
               :style="mutedStyle"
             >
@@ -126,7 +129,7 @@
               title="Disconnect"
               class="p-2 rounded-full transition-colors border"
               :style="iconBtnStyle"
-              @click="disconnectWallet()"
+              @click="exitSession"
             >
               <svg
                 class="w-5 h-5"
@@ -174,8 +177,21 @@ const { showToast } = useToast();
 
 const walletOpen = ref(false);
 
+const exitSession = async () => {
+  if (userStore.isGuest) {
+    authStore.signOut();
+    userStore.disconnect();
+    return;
+  }
+  await disconnectWallet();
+};
+
 const signIn = async () => {
   try {
+    if (userStore.isGuest) {
+      showToast(t('nav.guestNoSignIn'), 'info');
+      return;
+    }
     if (!userStore.isConnected || !userStore.address || !userStore.chainId) return;
     const provider = getProvider();
     await authStore.signIn(provider, { address: userStore.address, chainId: userStore.chainId });

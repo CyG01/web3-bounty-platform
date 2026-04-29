@@ -12,7 +12,7 @@
     </div>
 
     <div
-      v-if="!userStore.isConnected"
+      v-if="!userStore.isConnected || userStore.isGuest"
       class="border-l-4 p-4 mb-6 rounded-r-md ui-glow"
       :style="warningStyle"
     >
@@ -33,7 +33,7 @@
         </div>
         <div class="ml-3">
           <p class="text-sm font-medium" :style="warningTextStyle">
-            {{ t('create.connectHint') }}
+            {{ userStore.isGuest ? t('create.guestHint') : t('create.connectHint') }}
           </p>
         </div>
       </div>
@@ -43,12 +43,15 @@
       class="space-y-6 px-4 py-6 sm:rounded-xl sm:p-8 ui-glow ui-shimmer-border"
       :style="panelStyle"
       :class="{
-        'opacity-60 pointer-events-none grayscale-[30%]': !userStore.isConnected || isSubmitting,
+        'opacity-60 pointer-events-none grayscale-[30%]':
+          !userStore.isConnected || userStore.isGuest || isSubmitting,
       }"
       @submit.prevent="submitBounty"
     >
       <div>
-        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.taskTitle') }}</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{
+          t('create.taskTitle')
+        }}</label>
         <div class="mt-2">
           <input
             v-model="form.title"
@@ -62,7 +65,9 @@
       </div>
 
       <div>
-        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.descUri') }}</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{
+          t('create.descUri')
+        }}</label>
         <div class="mt-2">
           <input
             v-model="form.descURI"
@@ -80,7 +85,9 @@
 
       <div class="rounded-lg border p-4 space-y-3" :style="subPanelStyle">
         <div class="flex items-center justify-between gap-3">
-          <label class="text-sm font-semibold" :style="titleStyle">{{ t('create.autoUploadTitle') }}</label>
+          <label class="text-sm font-semibold" :style="titleStyle">{{
+            t('create.autoUploadTitle')
+          }}</label>
           <input v-model="autoUploadDesc" type="checkbox" class="h-4 w-4" />
         </div>
         <textarea
@@ -97,7 +104,9 @@
 
       <div class="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
         <div>
-          <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.tokenType') }}</label>
+          <label class="block text-sm font-semibold" :style="labelStyle">{{
+            t('create.tokenType')
+          }}</label>
           <div class="mt-2">
             <select
               v-model="form.tokenType"
@@ -111,7 +120,9 @@
         </div>
 
         <div>
-          <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.rewardAmount') }}</label>
+          <label class="block text-sm font-semibold" :style="labelStyle">{{
+            t('create.rewardAmount')
+          }}</label>
           <div class="mt-2 relative rounded-lg shadow-sm">
             <input
               v-model="form.reward"
@@ -125,13 +136,16 @@
             />
           </div>
           <p v-if="form.tokenType === 'ERC20'" class="mt-2 text-xs break-all" :style="mutedStyle">
-            {{ t('create.currentToken') }}: {{ tokenSymbol ? tokenSymbol : form.tokenAddress || '-' }}
+            {{ t('create.currentToken') }}:
+            {{ tokenSymbol ? tokenSymbol : form.tokenAddress || '-' }}
           </p>
         </div>
       </div>
 
       <div v-if="form.tokenType === 'ERC20'">
-        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.erc20Address') }}</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{
+          t('create.erc20Address')
+        }}</label>
         <div class="mt-2">
           <input
             v-model="form.tokenAddress"
@@ -148,7 +162,9 @@
       </div>
 
       <div>
-        <label class="block text-sm font-semibold" :style="labelStyle">{{ t('create.deadline') }}</label>
+        <label class="block text-sm font-semibold" :style="labelStyle">{{
+          t('create.deadline')
+        }}</label>
         <div class="mt-2">
           <input
             v-model="form.deadline"
@@ -168,7 +184,7 @@
 
         <button
           type="submit"
-          :disabled="!userStore.isConnected || isSubmitting"
+          :disabled="!userStore.isConnected || userStore.isGuest || isSubmitting"
           class="inline-flex justify-center items-center py-3 px-6 border border-transparent shadow-md text-sm font-bold rounded-lg text-white transition-all duration-200 disabled:bg-gray-400 hover:scale-[1.01] active:scale-[0.99]"
           :style="primaryBtnStyle"
         >
@@ -336,6 +352,10 @@ const shortenTx = (hash: string) => `${hash.slice(0, 6)}...${hash.slice(-4)}`;
 
 const submitBounty = async () => {
   if (!userStore.isConnected) return;
+  if (userStore.isGuest) {
+    showToast(t('common.guestTxDisabled'), 'info');
+    return;
+  }
 
   errorMsg.value = '';
   txHash.value = '';

@@ -6,6 +6,7 @@ import { createAppI18n } from './i18n';
 import type { SupportedLocale } from './i18n';
 import { useUiStore } from './stores/uiStore';
 import { useAuthStore } from './stores/authStore';
+import { useUserStore } from './stores/userStore';
 import './styles.css';
 import { useToast } from './composables/useToast';
 import { humanizeWeb3Error } from './utils/errors';
@@ -21,6 +22,8 @@ uiStore.init();
 
 const authStore = useAuthStore(pinia);
 authStore.init();
+const userStore = useUserStore(pinia);
+userStore.init();
 
 const i18n = createAppI18n(uiStore.locale);
 app.use(i18n);

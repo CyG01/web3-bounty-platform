@@ -441,6 +441,7 @@ const loadDetail = async () => {
 const canApprove = () => {
   if (!bounty.value) return false;
   if (!userStore.isConnected) return false;
+  if (userStore.isGuest) return false;
   if (userStore.address.toLowerCase() !== bounty.value.publisher.toLowerCase()) return false;
   if (bounty.value.status !== 'WORK_SUBMITTED') return false;
   if (bounty.value.successfulHunter !== zeroAddress) return false;
@@ -450,6 +451,7 @@ const canApprove = () => {
 const canCancel = () => {
   if (!bounty.value) return false;
   if (!userStore.isConnected) return false;
+  if (userStore.isGuest) return false;
   if (userStore.address.toLowerCase() !== bounty.value.publisher.toLowerCase()) return false;
   return bounty.value.status === 'OPEN' || bounty.value.status === 'WORK_SUBMITTED';
 };
@@ -457,11 +459,16 @@ const canCancel = () => {
 const canManageButUnsupported = () => {
   if (!bounty.value) return false;
   if (!userStore.isConnected) return false;
+  if (userStore.isGuest) return false;
   if (userStore.address.toLowerCase() !== bounty.value.publisher.toLowerCase()) return false;
   return bounty.value.status === 'OPEN' || bounty.value.status === 'WORK_SUBMITTED';
 };
 
 const cancelBounty = async () => {
+  if (userStore.isGuest) {
+    showToast(t('common.guestTxDisabled'), 'info');
+    return;
+  }
   actionKind.value = 'cancel';
   actionLoading.value = true;
   try {
@@ -488,6 +495,10 @@ const cancelBounty = async () => {
 
 const submit = async () => {
   if (!userStore.isConnected) return;
+  if (userStore.isGuest) {
+    showToast(t('common.guestTxDisabled'), 'info');
+    return;
+  }
   actionKind.value = 'submit';
   actionLoading.value = true;
   try {
@@ -514,6 +525,10 @@ const submit = async () => {
 };
 
 const approve = async (hunter: string) => {
+  if (userStore.isGuest) {
+    showToast(t('common.guestTxDisabled'), 'info');
+    return;
+  }
   actionKind.value = 'approve';
   actionLoading.value = true;
   try {

@@ -159,6 +159,10 @@ const refresh = async () => {
 
 const submit = async () => {
   if (!userStore.isConnected) return;
+  if (userStore.isGuest && requireSignIn) {
+    showToast(t('comments.guestSignInHint'), 'info');
+    return;
+  }
   if (requireSignIn && !authStore.isAuthenticated) return;
   if (!props.bountyId) return;
 
@@ -178,6 +182,10 @@ const submit = async () => {
 
 const signIn = async () => {
   try {
+    if (userStore.isGuest) {
+      showToast(t('comments.guestSignInHint'), 'info');
+      return;
+    }
     if (!userStore.isConnected || !userStore.address || !userStore.chainId) return;
     const provider = getProvider();
     await authStore.signIn(provider, { address: userStore.address, chainId: userStore.chainId });
